@@ -60,7 +60,7 @@
     if(!$("bdBody")) return;
     var sampleNote=document.createElement("p");
     sampleNote.className="board-sub";
-    sampleNote.textContent="상담 접수 내역을 확인하세요. 목록에는 화면 안내용 가상 샘플이 포함되어 있습니다.";
+    sampleNote.textContent="상담 접수 내역을 확인하세요.";
     $("bdBody").closest("table").insertAdjacentElement("beforebegin",sampleNote);
     load();
     $("bdSearch").addEventListener("click",function(){ state.q=$("bdQuery").value.trim(); state.field=$("bdField").value; state.page=1; load(); });
