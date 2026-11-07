@@ -35,8 +35,8 @@ export function buildMessage(post) {
 }
 
 export async function notify(env, post) {
-  const token = env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
-  const chat  = env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT;
+  const token = env.TELEGRAM_BOT_TOKEN_LG || env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const chat  = env.TELEGRAM_CHAT_ID_LG || env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT;
   const text  = buildMessage(post);
 
   const jobs = [];
@@ -92,8 +92,8 @@ export function buildBlockMessage(row) {
 }
 
 export async function notifyBlock(env, row) {
-  const token = env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
-  const chat  = env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT;
+  const token = env.TELEGRAM_BOT_TOKEN_LG || env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const chat  = env.TELEGRAM_CHAT_ID_LG || env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT;
   const text  = buildBlockMessage(row);
   if (!token || !chat) return;
   await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {

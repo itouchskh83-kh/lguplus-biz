@@ -42,6 +42,8 @@ export async function onRequestGet({ request, env }) {
   return json({ ok: true, total: total || 0, page, per, pages: Math.max(1, Math.ceil((total || 0) / per)), list });
 }
 
+const LG_PRODUCTS = ['기업인터넷','인터넷전화','사장님패키지','기업IPTV','와이파이오피스','지능형CCTV','기타 문의'];
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   const waitUntil = context.waitUntil ? context.waitUntil.bind(context) : null;
