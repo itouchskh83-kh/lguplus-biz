@@ -302,20 +302,22 @@ h1,h2,h3,h4,.head h2,.pcard .name,.pcard .sub,.reason h3,.feat h3,.mini h4,.prom
 .f-powered{font-size:11.5px;color:#b6bac6}
 
 /* quick + mobile bar */
-.quick{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:70;width:208px;background:#fff;border-radius:10px;box-shadow:var(--shadow-lg);overflow:hidden;transition:transform .35s var(--ease),opacity .3s}
+.quick{position:fixed;right:20px;top:50%;transform:translateY(-50%);z-index:70;width:224px;background:#fff;border-radius:18px;box-shadow:0 12px 40px rgba(16,17,20,.14);overflow:hidden;border:1px solid #f0f0f0;transition:transform .35s var(--ease),opacity .3s}
 .quick.is-hidden{transform:translateY(-50%) translateX(calc(100% + 30px));opacity:0}
-.quick .qtitle{padding:16px 18px 10px;font-size:15px;font-weight:800;letter-spacing:-.02em}
-.quick .qbody{padding:0 12px 12px;display:grid;gap:7px}
-.qbtn{display:flex;align-items:center;justify-content:center;gap:7px;height:40px;border-radius:6px;font-size:13px;font-weight:700;transition:transform .18s var(--ease),filter .2s}
-.qbtn:hover{transform:translateY(-1px);filter:brightness(.97)}
-.qbtn.call{background:var(--red-050);color:#e2574f;border:1px solid #f6d8d6}
-.qbtn.kakao{background:#fee500;color:#3c1e1e}
-.quick .qnum{padding:14px 18px 0;border-top:1px solid var(--line);margin:0 12px}
-.qnum .qt{font-size:13px;font-weight:800;margin-bottom:8px}
-.qnum .txt{font-size:11px;line-height:1.5;color:#8b90a0;letter-spacing:-.02em}
-.qnum .num{display:block;margin-top:6px;font-size:21px;font-weight:800;color:var(--red);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.quick .qimg{margin:6px 0 0 auto;width:112px}
-.quick-toggle{position:absolute;left:-30px;top:50%;transform:translateY(-50%);width:30px;height:56px;background:#fff;border-radius:8px 0 0 8px;box-shadow:-6px 0 14px rgba(16,17,20,.06);display:grid;place-items:center;color:#9aa0b0;font-size:11px;font-weight:700;writing-mode:vertical-rl}
+.quick .qhead{display:flex;align-items:center;gap:8px;padding:15px 18px 12px;background:linear-gradient(100deg,#E4107F 0%,#B0005F 100%)}
+.quick .qmark{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.22)}
+.quick .qhead-txt{font-size:14px;font-weight:800;color:#fff;letter-spacing:-.02em}
+.quick .qnum{padding:16px 18px 4px}
+.qnum .qt{font-size:11.5px;font-weight:700;color:#8a8b92;letter-spacing:-.01em;margin:0}
+.qnum .num{display:block;margin-top:6px;font-size:25px;font-weight:900;color:#111;letter-spacing:-.045em;font-variant-numeric:tabular-nums;line-height:1.1}
+.qnum .txt{font-size:11px;line-height:1.55;color:#9a9ba2;margin:8px 0 0;letter-spacing:-.01em}
+.quick .qbody{padding:14px 14px 12px;display:grid;gap:8px}
+.qbtn{display:flex;align-items:center;justify-content:center;gap:7px;height:42px;border-radius:11px;font-size:13px;font-weight:800;letter-spacing:-.02em;transition:transform .18s var(--ease),filter .2s}
+.qbtn:hover{transform:translateY(-1px);filter:brightness(.96)}
+.qbtn.call{background:var(--red);color:#fff}
+.qbtn.kakao{background:#FEE500;color:#3c1e1e}
+.quick .qfoot{padding:10px 14px 13px;font-size:10.5px;font-weight:700;color:#b0b1b8;text-align:center;border-top:1px solid #f4f4f5;letter-spacing:-.01em}
+.quick-toggle{position:absolute;left:-28px;top:50%;transform:translateY(-50%);width:28px;height:52px;background:#fff;border-radius:10px 0 0 10px;box-shadow:-6px 0 14px rgba(16,17,20,.06);display:grid;place-items:center;color:#a8a9b0;font-size:10.5px;font-weight:700;writing-mode:vertical-rl}
 .mobile-bar{display:none}
 .mobile-bar{transition:transform .28s var(--ease)}
 .mobile-bar.is-down{transform:translateY(100%)}
@@ -550,11 +552,12 @@ table.price .dim{color:#84858c}
 .form-box .btn-submit:hover{background:var(--red-600)}
 .form-box .btn-submit:disabled{opacity:.6;cursor:default}
 .fmsg{margin-top:12px;font-size:14px;font-weight:700;color:var(--red)}
-.bento{display:grid;grid-template-columns:1.35fr 1fr;grid-template-rows:auto auto;gap:18px;margin-top:40px}
-.bento .big{grid-row:1/3}
+.bento{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px;align-items:stretch}
+.bento .big{grid-row:auto}
+.bento .tile{min-height:300px;padding:32px 28px}
 .tile{position:relative;border-radius:18px;padding:30px 28px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;min-height:180px;background:#f4f4f5;border:1px solid #ececec;text-decoration:none;color:inherit}
 .tile .chip{display:inline-block;align-self:flex-start;font-size:12px;font-weight:800;padding:6px 12px;border-radius:999px;background:#fff;color:#111;border:1px solid #e6e6e6}
-.tile h3{margin:14px 0 0;font-size:clamp(19px,2vw,24px);font-weight:800;letter-spacing:-.04em;line-height:1.28}
+.tile h3{margin:16px 0 0;font-size:clamp(18px,1.55vw,22px);font-weight:800;letter-spacing:-.04em;line-height:1.28}
 .tile .arrow{position:absolute;right:22px;bottom:22px;width:38px;height:38px;border-radius:50%;background:#fff;display:grid;place-items:center;border:1px solid #eaeaea;font-size:15px;color:#111;transition:transform .25s}
 .tile:hover .arrow{transform:translate(3px,-3px)}
 .tile--accent{background:var(--red);border-color:var(--red);color:#fff}
@@ -578,5 +581,9 @@ table.price .dim{color:#84858c}
 .lg-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .lg-row .w{color:#5c5d64;font-size:13px}
 .lg-row .s{font-size:11.5px;font-weight:800;color:var(--red)}
-@media(max-width:1024px){.grid3{grid-template-columns:repeat(2,1fr)}.points{grid-template-columns:repeat(2,1fr)}.bento{grid-template-columns:1fr}.bento .big{grid-row:auto}}
+@media(max-width:1024px){.bento{grid-template-columns:1fr}.grid3{grid-template-columns:repeat(2,1fr)}.points{grid-template-columns:repeat(2,1fr)}.bento{grid-template-columns:1fr}.bento .big{grid-row:auto}}
 @media(max-width:760px){.sec{padding:56px 0}.grid3,.grid2{grid-template-columns:1fr;gap:14px;margin-top:26px}.points{grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}.bento{grid-template-columns:1fr;gap:12px;margin-top:26px}.form-box{padding:22px 18px}.cta-band{padding:28px 22px;border-radius:16px}.table-wrap{overflow-x:auto}table.price{min-width:560px;font-size:13.5px}table.price thead th,table.price tbody td{padding:12px 10px;word-break:keep-all}.card{padding:24px 20px}.lg-row{grid-template-columns:1fr 84px;padding:13px 16px}.lg-row .d,.lg-row .w{display:none}}
+
+.tel-page .phero .bg.d{background-size:contain;background-position:right center;background-repeat:no-repeat;background-color:#fff}
+.tel-page .phero{background:#fff}
+@media(max-width:1024px){.tel-page .phero .bg.d{display:none}}
