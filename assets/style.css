@@ -623,6 +623,12 @@ table.price .dim{color:#84858c}
 .phero p.lead{font-size:15px}
 .phero .hero-actions{max-width:49%;gap:8px;margin-top:24px}
 .phero .hero-actions .btn{font-size:14px;padding:0 18px;height:48px}
+.phero .hero-actions .hero-phone{display:inline-flex;justify-content:center;align-items:center;gap:9px;background:#fff;border:2px solid var(--red);color:var(--red-600);font-weight:800;border-radius:10px;min-height:48px;box-shadow:0 3px 10px rgba(228,16,127,.06)}
+.phero .hero-actions .hero-phone:hover{background:var(--red-050);border-color:var(--red-600)}
+.scroll-reveal{opacity:1}
+.scroll-reveal.is-revealed{animation:gentle-reveal .55s cubic-bezier(.22,.61,.36,1) var(--reveal-delay,0ms) both}
+@keyframes gentle-reveal{from{opacity:.3;translate:0 14px}to{opacity:1;translate:0 0}}
+@media(prefers-reduced-motion:reduce){.scroll-reveal.is-revealed{opacity:1;translate:none;animation:none}}
 .crumb{margin-bottom:14px}
 .quick{z-index:80}
 @media(min-width:1025px) and (max-width:1900px){

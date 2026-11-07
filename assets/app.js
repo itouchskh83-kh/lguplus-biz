@@ -155,3 +155,25 @@
     calc.addEventListener('change',update); calc.addEventListener('input',update); update();
   }
 })();
+
+(function(){
+  if(!('IntersectionObserver' in window) || !window.matchMedia || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var nodes=document.querySelectorAll('main .sec-head,main .head,main .card,main .tile,main .point,main .cta-band,main .related,main .table-wrap');
+  var observer=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add('is-revealed');observer.unobserve(entry.target);}});
+  },{threshold:0,rootMargin:'0px 0px -24px 0px'});
+  nodes.forEach(function(el){
+    // 첫 화면은 그대로 표시. 스크롤로 진입하는 요소만 한 번 등장시킵니다.
+    if(el.getBoundingClientRect().top < window.innerHeight) return;
+    el.classList.add('scroll-reveal');
+    if(el.matches('.card,.tile,.point')) {
+      var i=Array.prototype.indexOf.call(el.parentElement.children,el);
+      el.style.setProperty('--reveal-delay',(i%3)*65+'ms');
+    }
+    observer.observe(el);
+  });
+  // 지원 환경의 예외나 화면 복원 시에도 콘텐츠가 숨은 채 남지 않습니다.
+  function showAll(){nodes.forEach(function(el){el.classList.add('is-revealed');});observer.disconnect();}
+  window.addEventListener('beforeprint',showAll);
+  window.addEventListener('pageshow',function(e){if(e.persisted)showAll();});
+})();

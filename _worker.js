@@ -523,7 +523,7 @@ async function onRequestGet({ request, env }) {
   const kind = u.searchParams.get("kind") || "all";
   const per = Math.min(100, Math.max(1, parseInt(u.searchParams.get("per") || "0", 10) || PER));
   const days = parseInt(u.searchParams.get("days") || "0", 10) || 0;
-  let where = "WHERE password_hash <> 'seed'";
+  let where = "WHERE 1 = 1";
   const binds = [];
   if (kind === "consult" || kind === "inquiry") {
     where += " AND kind = ?";
@@ -1021,7 +1021,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-wnm6l0sw/.wrangler/tmp/pages-SLmx53/functionsRoutes-0.771807088957976.mjs
+// ../../../../../../tmp/lg-worker-z3i5989n/.wrangler/tmp/pages-Vy9dai/functionsRoutes-0.5452096319895572.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/delete",
