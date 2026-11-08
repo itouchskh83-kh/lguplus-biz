@@ -690,15 +690,15 @@ table.price .dim{color:#84858c}
 .phero .bg::after{right:18px;bottom:14px}
 body.hero-down .phero .bg{background-position:78% calc(50% + 113px)!important}
 @media(max-width:1024px){
- .hero-photo{height:auto;margin:0;border-radius:0}
- .hero-photo img{width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;object-position:76% center;max-height:none}
+ .hero-photo{height:auto;margin:0 16px;border-radius:18px;overflow:hidden;background:#F1ECFB}
+ .hero-photo img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;object-position:74% center;max-height:none}
  .hero-photo::after{display:none}
  .hero-inner{padding:0}
  .hero-copy{width:100%;max-width:none;padding:22px 20px 30px}
  .phero{display:block;padding-top:0}
  .phero::before{display:none}
  .phero .bg{display:none!important}
- .phero .bg-m{display:block!important;width:100%;margin:0;border-radius:0;height:auto;aspect-ratio:4/5;max-height:none;object-fit:contain;object-position:center top;background:#F6F3FC}
+ .phero .bg-m{display:block!important;width:calc(100% - 32px);margin:0 16px;border-radius:18px;height:auto;aspect-ratio:16/10;max-height:none;object-fit:cover;object-position:74% center;background:#F1ECFB}
  .phero .inner{min-height:0;display:block;padding:24px 20px 32px;max-width:none}
  .phero h1,.phero p.lead{max-width:100%}
  .phero .hero-actions{max-width:100%}

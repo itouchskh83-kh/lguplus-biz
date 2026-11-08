@@ -1021,7 +1021,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-mi7wxluo/.wrangler/tmp/pages-3ZjmFP/functionsRoutes-0.30881805993596956.mjs
+// ../../../../../../tmp/lg-worker-tougrq9x/.wrangler/tmp/pages-3valvP/functionsRoutes-0.556208508923405.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/delete",
