@@ -546,6 +546,14 @@ table.price .pname{font-weight:800;letter-spacing:-.02em}
 table.price .spec{display:block;margin-top:5px;font-size:12.5px;color:#84858c;font-weight:500}
 table.price .hl{color:var(--red);font-weight:900;font-size:16.5px}
 table.price .dim{color:#84858c}
+
+table.price tr.is-reco td{background:#FAF7FF;border-top:2px solid var(--red);border-bottom:2px solid var(--red)}
+table.price tr.is-reco td:first-child{border-left:2px solid var(--red);border-radius:10px 0 0 10px}
+table.price tr.is-reco td:last-child{border-right:2px solid var(--red);border-radius:0 10px 10px 0}
+table.price tr.is-reco .pname,table.price tr.is-reco td:first-child{font-weight:900}
+.reco-badge{display:inline-block;margin-left:7px;padding:3px 9px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;vertical-align:2px;white-space:nowrap}
+table.price th.col-reco,table.price td.col-reco{background:#F6F1FF;box-shadow:inset 2px 0 0 var(--red),inset -2px 0 0 var(--red);font-weight:900;color:var(--red-600)}
+table.price thead th.col-reco{background:var(--red);color:#fff;box-shadow:none}
 .note{margin-top:14px;font-size:13px;color:#8a8b92;line-height:1.75}
 .note b{color:#5c5d64}
 .cta-band{margin:0;background:#1a1a1e;color:#fff;border-radius:20px;padding:44px 44px;display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap}
