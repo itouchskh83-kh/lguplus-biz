@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://lguplus-biz.pages.dev/sitemap.xml
