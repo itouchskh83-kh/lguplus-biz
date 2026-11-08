@@ -413,13 +413,13 @@ h1,h2,h3,h4,.head h2,.pcard .name,.pcard .sub,.reason h3,.feat h3,.mini h4,.prom
   .mobile-bar{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:90;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(16,17,20,.06);padding-bottom:env(safe-area-inset-bottom)}
   .mobile-bar a,.mobile-bar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:11px 4px 12px;font-size:13px;font-weight:800;letter-spacing:-.03em;color:#3b3e47;position:relative;min-height:68px}
   .mobile-bar a svg,.mobile-bar button svg{width:26px;height:26px;flex:none}
-  .mobile-bar .consult{background:#E4107F;color:#fff}
+  .mobile-bar .consult{background:var(--red);color:#fff}
   .mobile-bar a[href*="open.kakao"]{background:#FEE500;color:#3C1E1E}
   body{padding-bottom:92px}
   .quick{display:none}
   .mobile-bar.is-scrolled{transform:translateY(100%)}
   .tbl-wrap{padding-bottom:2px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .mobile-bar .tel{background:var(--red);color:#fff}
+  .mobile-bar .tel{background:#E4107F;color:#fff}
   .mobile-bar button#goTop{background:#fff;color:#3b3e47}
   body{padding-bottom:88px}
 }
