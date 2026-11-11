@@ -31,8 +31,24 @@ var PER = 12;
 var MAX_FAIL = 5;
 var LOCK_MS = 60 * 1e3;
 
-// api/posts/[id]/delete.js
+// api/posts/[id]/admin-delete.js
 async function onRequestPost({ request, env, params }) {
+  if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
+  if (!env.ADMIN_PASSWORD) return json({ ok: false, error: "ADMIN_NOT_CONFIGURED" }, 500);
+  if ((request.headers.get("x-admin") || "") !== env.ADMIN_PASSWORD) {
+    return json({ ok: false, error: "UNAUTHORIZED" }, 401);
+  }
+  const id = parseInt(params.id, 10);
+  if (!id) return json({ ok: false, error: "BAD_ID" }, 400);
+  const row = await env.DB.prepare("SELECT id, title FROM posts WHERE id = ?").bind(id).first();
+  if (!row) return json({ ok: false, error: "NOT_FOUND" }, 404);
+  await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id).run();
+  return json({ ok: true, id, title: row.title });
+}
+__name(onRequestPost, "onRequestPost");
+
+// api/posts/[id]/delete.js
+async function onRequestPost2({ request, env, params }) {
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b;
   try {
@@ -48,10 +64,10 @@ async function onRequestPost({ request, env, params }) {
   await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id).run();
   return json({ ok: true });
 }
-__name(onRequestPost, "onRequestPost");
+__name(onRequestPost2, "onRequestPost");
 
 // api/posts/[id]/open.js
-async function onRequestPost2({ request, env, params }) {
+async function onRequestPost3({ request, env, params }) {
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b;
   try {
@@ -84,7 +100,7 @@ async function onRequestPost2({ request, env, params }) {
   }
   return json({ ok: true, post: shape(row) });
 }
-__name(onRequestPost2, "onRequestPost");
+__name(onRequestPost3, "onRequestPost");
 function shape(r) {
   return {
     id: r.id,
@@ -103,7 +119,7 @@ function shape(r) {
 __name(shape, "shape");
 
 // api/posts/[id]/reply.js
-async function onRequestPost3({ request, env, params }) {
+async function onRequestPost4({ request, env, params }) {
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   if (!env.ADMIN_PASSWORD) return json({ ok: false, error: "ADMIN_NOT_CONFIGURED" }, 500);
   if ((request.headers.get("x-admin") || "") !== env.ADMIN_PASSWORD) return json({ ok: false, error: "UNAUTHORIZED" }, 401);
@@ -118,10 +134,10 @@ async function onRequestPost3({ request, env, params }) {
   await env.DB.prepare("UPDATE posts SET reply = ?, replied_at = datetime('now','+9 hours') WHERE id = ?").bind(reply, parseInt(params.id, 10)).run();
   return json({ ok: true });
 }
-__name(onRequestPost3, "onRequestPost");
+__name(onRequestPost4, "onRequestPost");
 
 // api/posts/[id]/update.js
-async function onRequestPost4({ request, env, params }) {
+async function onRequestPost5({ request, env, params }) {
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b;
   try {
@@ -147,10 +163,10 @@ async function onRequestPost4({ request, env, params }) {
   ).bind(title, content, author, phone2, String(b.product || "").trim(), id).run();
   return json({ ok: true });
 }
-__name(onRequestPost4, "onRequestPost");
+__name(onRequestPost5, "onRequestPost");
 
 // api/posts/mine.js
-async function onRequestPost5({ request, env }) {
+async function onRequestPost6({ request, env }) {
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b;
   try {
@@ -175,10 +191,10 @@ async function onRequestPost5({ request, env }) {
   }));
   return json({ ok: true, author: mask(author), total: list.length, list });
 }
-__name(onRequestPost5, "onRequestPost");
+__name(onRequestPost6, "onRequestPost");
 
 // api/admin.js
-async function onRequestPost6({ request, env }) {
+async function onRequestPost7({ request, env }) {
   if (!env.ADMIN_PASSWORD) return json({ ok: false, error: "ADMIN_NOT_CONFIGURED" }, 500);
   let b;
   try {
@@ -201,7 +217,77 @@ async function onRequestPost6({ request, env }) {
     pages: Math.max(1, Math.ceil((total || 0) / per))
   });
 }
-__name(onRequestPost6, "onRequestPost");
+__name(onRequestPost7, "onRequestPost");
+
+// api/_tg.js
+var API = "https://api.telegram.org/bot";
+async function readSaved(env) {
+  if (!env || !env.DB) return null;
+  try {
+    const row = await env.DB.prepare("SELECT val FROM app_settings WHERE key = 'tg_chat_id'").first();
+    return row && row.val ? String(row.val) : null;
+  } catch (e) {
+    return null;
+  }
+}
+__name(readSaved, "readSaved");
+async function saveSaved(env, id) {
+  if (!env || !env.DB) return false;
+  try {
+    await env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, val TEXT, updated_at TEXT)"
+    ).run();
+    await env.DB.prepare(
+      "INSERT INTO app_settings (key, val, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET val = excluded.val, updated_at = excluded.updated_at"
+    ).bind("tg_chat_id", String(id), (/* @__PURE__ */ new Date()).toISOString()).run();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+__name(saveSaved, "saveSaved");
+async function send(token, chat, payload) {
+  try {
+    const res = await fetch(API + token + "/sendMessage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(Object.assign({ chat_id: chat }, payload))
+    });
+    let body = null;
+    try {
+      body = await res.json();
+    } catch (e) {
+      body = null;
+    }
+    return { status: res.status, ok: !!(body && body.ok), body };
+  } catch (e) {
+    return { status: 0, ok: false, body: { description: String(e && e.message || e) } };
+  }
+}
+__name(send, "send");
+async function sendMessage(env, token, chat, payload) {
+  if (!token || !chat) return { ok: false, error: "missing_credentials" };
+  const saved = await readSaved(env);
+  const primary = saved || String(chat);
+  let r = await send(token, primary, payload);
+  const migrated = r.body && r.body.parameters && r.body.parameters.migrate_to_chat_id;
+  if (migrated) {
+    const next = String(migrated);
+    const r2 = await send(token, next, payload);
+    if (r2.ok) {
+      await saveSaved(env, next);
+      return { ok: true, chat_id: next, migrated: true };
+    }
+    return { ok: false, chat_id: next, migrated: true, error: r2.body && r2.body.description || "send_failed" };
+  }
+  if (r.ok) return { ok: true, chat_id: primary };
+  if (saved && String(saved) !== String(chat)) {
+    const r3 = await send(token, String(chat), payload);
+    if (r3.ok) return { ok: true, chat_id: String(chat) };
+  }
+  return { ok: false, chat_id: primary, error: r.body && r.body.description || "send_failed" };
+}
+__name(sendMessage, "sendMessage");
 
 // api/_notify.js
 function won(n) {
@@ -244,11 +330,7 @@ async function notify(env, post) {
   const text = buildMessage(post);
   const jobs = [];
   if (token && chat) {
-    jobs.push(fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true })
-    }).catch(() => null));
+    jobs.push(sendMessage(env, token, chat, { text, disable_web_page_preview: true }));
   }
   if (env.DISCORD_WEBHOOK_LG) {
     jobs.push(fetch(env.DISCORD_WEBHOOK_LG, {
@@ -305,11 +387,7 @@ async function notifyBlock(env, row) {
   const chat = env.TELEGRAM_CHAT_ID_LG;
   const text = buildBlockMessage(row);
   if (!token || !chat) return;
-  await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true })
-  }).catch(() => null);
+  await sendMessage(env, token, chat, { text, disable_web_page_preview: true });
 }
 __name(notifyBlock, "notifyBlock");
 
@@ -562,7 +640,7 @@ async function onRequestGet({ request, env }) {
 }
 __name(onRequestGet, "onRequestGet");
 var LG_PRODUCTS = ["\uAE30\uC5C5\uC778\uD130\uB137", "\uC778\uD130\uB137\uC804\uD654", "\uC0AC\uC7A5\uB2D8\uD328\uD0A4\uC9C0", "\uAE30\uC5C5IPTV", "\uC640\uC774\uD30C\uC774\uC624\uD53C\uC2A4", "\uC9C0\uB2A5\uD615CCTV", "\uAE30\uD0C0 \uBB38\uC758"];
-async function onRequestPost7(context) {
+async function onRequestPost8(context) {
   const { request, env } = context;
   const waitUntil = context.waitUntil ? context.waitUntil.bind(context) : null;
   if (env.DB) {
@@ -600,7 +678,7 @@ async function onRequestPost7(context) {
   else await task;
   return json({ ok: true, id });
 }
-__name(onRequestPost7, "onRequestPost");
+__name(onRequestPost8, "onRequestPost");
 
 // api/smartlog.js
 function csvCell(v) {
@@ -608,7 +686,7 @@ function csvCell(v) {
   return '"' + s + '"';
 }
 __name(csvCell, "csvCell");
-async function onRequestPost8({ request, env }) {
+async function onRequestPost9({ request, env }) {
   if (!env.ADMIN_PASSWORD) return json({ ok: false, error: "ADMIN_NOT_CONFIGURED" }, 500);
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b = {};
@@ -658,7 +736,10 @@ async function onRequestPost8({ request, env }) {
     ).first();
     const logs = await env.DB.prepare(
       `SELECT id, ip, fp, ref, keyword, path, is_naver, score, action, reason, region, org, country,
-              dwell, depth, created_at
+              dwell, depth, created_at,
+              (SELECT COUNT(*) FROM click_logs v WHERE v.ip = click_logs.ip AND v.action <> 'test') AS ip_visits,
+              (CASE WHEN click_logs.fp IS NULL OR click_logs.fp = '' THEN 0
+                    ELSE (SELECT COUNT(*) FROM click_logs v WHERE v.fp = click_logs.fp AND v.action <> 'test') END) AS fp_visits
          FROM click_logs
         WHERE created_at >= datetime('now','+9 hours','-${days} days')
           AND action <> 'test'
@@ -797,14 +878,14 @@ async function onRequestPost8({ request, env }) {
   }
   return json({ ok: false, error: "UNKNOWN_OP" }, 400);
 }
-__name(onRequestPost8, "onRequestPost");
+__name(onRequestPost9, "onRequestPost");
 
 // api/track.js
 function kst(offsetMs) {
   return new Date(Date.now() + 9 * 36e5 + (offsetMs || 0)).toISOString().slice(0, 19).replace("T", " ");
 }
 __name(kst, "kst");
-async function onRequestPost9(context) {
+async function onRequestPost10(context) {
   const { request, env } = context;
   const waitUntil = context.waitUntil ? context.waitUntil.bind(context) : (p) => {
     p && p.catch && p.catch(() => {
@@ -1006,7 +1087,7 @@ async function onRequestPost9(context) {
     id: logId
   });
 }
-__name(onRequestPost9, "onRequestPost");
+__name(onRequestPost10, "onRequestPost");
 
 // api/_middleware.js
 async function onRequest(context) {
@@ -1021,49 +1102,56 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-l59b03mc/.wrangler/tmp/pages-ApQxwi/functionsRoutes-0.7017441606080026.mjs
+// ../../../../../../tmp/lg-worker-_b9zg3g8/.wrangler/tmp/pages-bjAQpI/functionsRoutes-0.37017674184984606.mjs
 var routes = [
   {
-    routePath: "/api/posts/:id/delete",
+    routePath: "/api/posts/:id/admin-delete",
     mountPath: "/api/posts/:id",
     method: "POST",
     middlewares: [],
     modules: [onRequestPost]
   },
   {
-    routePath: "/api/posts/:id/open",
+    routePath: "/api/posts/:id/delete",
     mountPath: "/api/posts/:id",
     method: "POST",
     middlewares: [],
     modules: [onRequestPost2]
   },
   {
-    routePath: "/api/posts/:id/reply",
+    routePath: "/api/posts/:id/open",
     mountPath: "/api/posts/:id",
     method: "POST",
     middlewares: [],
     modules: [onRequestPost3]
   },
   {
-    routePath: "/api/posts/:id/update",
+    routePath: "/api/posts/:id/reply",
     mountPath: "/api/posts/:id",
     method: "POST",
     middlewares: [],
     modules: [onRequestPost4]
   },
   {
+    routePath: "/api/posts/:id/update",
+    mountPath: "/api/posts/:id",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost5]
+  },
+  {
     routePath: "/api/posts/mine",
     mountPath: "/api/posts",
     method: "POST",
     middlewares: [],
-    modules: [onRequestPost5]
+    modules: [onRequestPost6]
   },
   {
     routePath: "/api/admin",
     mountPath: "/api",
     method: "POST",
     middlewares: [],
-    modules: [onRequestPost6]
+    modules: [onRequestPost7]
   },
   {
     routePath: "/api/posts",
@@ -1077,21 +1165,21 @@ var routes = [
     mountPath: "/api",
     method: "POST",
     middlewares: [],
-    modules: [onRequestPost7]
+    modules: [onRequestPost8]
   },
   {
     routePath: "/api/smartlog",
     mountPath: "/api",
     method: "POST",
     middlewares: [],
-    modules: [onRequestPost8]
+    modules: [onRequestPost9]
   },
   {
     routePath: "/api/track",
     mountPath: "/api",
     method: "POST",
     middlewares: [],
-    modules: [onRequestPost9]
+    modules: [onRequestPost10]
   },
   {
     routePath: "/api",
