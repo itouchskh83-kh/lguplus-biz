@@ -614,6 +614,23 @@ async function ensureSchema(env) {
   }
 }
 __name(ensureSchema, "ensureSchema");
+async function getSet(env, key, dflt) {
+  try {
+    const r = await env.DB.prepare("SELECT val FROM app_settings WHERE key = ?").bind(key).first();
+    return r && r.val != null ? r.val : dflt;
+  } catch (e) {
+    return dflt;
+  }
+}
+__name(getSet, "getSet");
+async function setSet(env, key, val) {
+  try {
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, val TEXT, updated_at TEXT)").run();
+    await env.DB.prepare("INSERT INTO app_settings (key,val,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET val=excluded.val, updated_at=excluded.updated_at").bind(key, String(val), new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ")).run();
+  } catch (e) {
+  }
+}
+__name(setSet, "setSet");
 
 // api/posts.js
 async function onRequestGet({ request, env }) {
@@ -712,7 +729,142 @@ function csvCell(v) {
   return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
 }
 __name(csvCell, "csvCell");
-async function onRequestPost9({ request, env }) {
+async function rxStatus(env) {
+  const wm = await getSet(env, "reindex_from", "");
+  const mnRow = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first();
+  const cutRow = await env.DB.prepare("SELECT MIN(started_at) AS m FROM visits WHERE sid NOT LIKE 'b%'").first();
+  const now2 = new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
+  const mn = (mnRow || {}).m;
+  const end = (cutRow || {}).m || now2;
+  if (!mn) return { need: false, done: true, from: "", end, msg: "\uC7AC\uC9D1\uACC4\uD560 \uC6D0\uBCF8 \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." };
+  const from = wm || mn;
+  return { need: from < end, done: from >= end, from, end, wm };
+}
+__name(rxStatus, "rxStatus");
+async function reindexBatch(env, fromIn) {
+  let from = String(fromIn || "").trim();
+  if (!from) {
+    const mn = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first("m");
+    if (!mn) return json({ ok: true, done: true, inserted: 0, msg: "\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." });
+    from = mn;
+  }
+  const toRow = await env.DB.prepare("SELECT datetime(?, '+10 days') AS t").bind(from).first();
+  const to = toRow.t;
+  const rows = await env.DB.prepare(
+    `WITH base AS (
+         SELECT id, ip, COALESCE(NULLIF(fp,''), 'ip:' || ip) AS k, is_naver, created_at,
+                COALESCE(dwell, 0) AS dwell, COALESCE(moved, 0) AS moved, asn, region, org, country, ua, keyword,
+                julianday(created_at) AS jd
+           FROM click_logs
+          WHERE action <> 'test' AND created_at >= ? AND created_at < ?
+       ),
+       g AS (SELECT *, CASE WHEN jd - LAG(jd) OVER (PARTITION BY k ORDER BY created_at) > 0.0208333 THEN 1 ELSE 0 END AS ns FROM base),
+       s AS (SELECT *, SUM(COALESCE(ns, 1)) OVER (PARTITION BY k ORDER BY created_at ROWS UNBOUNDED PRECEDING) AS seg FROM g)
+       SELECT k, seg, MIN(id) AS first_id, MAX(id) AS last_id, MAX(ip) AS ip, MAX(is_naver) AS is_ad,
+              COUNT(*) AS pages, SUM(dwell) AS sec, MAX(moved) AS moved,
+              MIN(created_at) AS started_at, MAX(created_at) AS last_at,
+              MAX(asn) AS asn, MAX(region) AS region, MAX(org) AS org, MAX(country) AS country, MAX(ua) AS ua, MAX(keyword) AS kw
+         FROM s GROUP BY k, seg ORDER BY MIN(created_at) ASC`
+  ).bind(from, to).all();
+  const list = rows.results || [];
+  const BOT = /(bot|crawl|spider|headless|phantom|selenium|puppeteer|playwright|curl|wget|python-requests|okhttp|scrapy|httpclient|java\/)/i;
+  const byIp = /* @__PURE__ */ new Map(), byFp = /* @__PURE__ */ new Map(), byAsn = /* @__PURE__ */ new Map();
+  list.forEach((r, i) => {
+    (byIp.get(r.ip) || byIp.set(r.ip, []).get(r.ip)).push(i);
+    if (r.k) (byFp.get(r.k) || byFp.set(r.k, []).get(r.k)).push(i);
+    if (r.asn) (byAsn.get(r.asn) || byAsn.set(r.asn, []).get(r.asn)).push(i);
+  });
+  const countWin = /* @__PURE__ */ __name((arr, i, min) => {
+    const t = (/* @__PURE__ */ new Date(list[i].started_at.replace(" ", "T") + "+09:00")).getTime();
+    let n = 0;
+    for (const j of arr) {
+      const u = (/* @__PURE__ */ new Date(list[j].started_at.replace(" ", "T") + "+09:00")).getTime();
+      if (Math.abs(u - t) <= min * 6e4 && list[j].is_ad) n++;
+    }
+    return n;
+  }, "countWin");
+  const stmts = [];
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
+    const isAd = !!r.is_ad;
+    const sec = Number(r.sec) || 0;
+    const pages = Number(r.pages) || 1;
+    let score = 0;
+    if (isAd) {
+      const ipAd = countWin(byIp.get(r.ip) || [], i, 30);
+      const fpAd = r.k ? countWin(byFp.get(r.k) || [], i, 30) : 0;
+      const ipSet = /* @__PURE__ */ new Set();
+      (byFp.get(r.k) || []).forEach((j) => {
+        if (list[j].is_ad) ipSet.add(list[j].ip);
+      });
+      const fpIps = ipSet.size;
+      const host = /(google|amazon|aws|digitalocean|vultr|ovh|hetzner|microsoft|azure|oracle|alibaba|tencent|contabo|linode|m247|leaseweb|colocrossing|hostinger|namecheap|proxy|vpn)/i.test(r.org || "");
+      if (ipAd >= 10) score += 100;
+      else if (ipAd >= 6) score += 75;
+      else if (ipAd >= 4) score += 55;
+      else if (ipAd >= 3) score += 35;
+      if (fpAd >= 8) score += 110;
+      else if (fpAd >= 5) score += 80;
+      else if (fpAd >= 4) score += 55;
+      else if (fpAd >= 3) score += 35;
+      if (fpIps >= 3) score += 80;
+      else if (fpIps >= 2) score += 45;
+      const carrier = /(skt|kt |lgu|lg u\+|korea telecom|sk broadband|sk telink|hello)/i.test(r.org || "");
+      if (r.asn && !carrier) {
+        const asnAd = countWin(byAsn.get(r.asn) || [], i, 30);
+        if (asnAd >= 8) score += 65;
+        else if (asnAd >= 5) score += 45;
+        else if (asnAd >= 3) score += 25;
+      }
+      if (BOT.test(r.ua || "")) score += 60;
+      if (host) score += 50;
+    }
+    score = Math.max(0, Math.round(score));
+    let verdict = "normal";
+    if (score >= 105) verdict = "block";
+    else if (score >= 75) verdict = "warn";
+    else if (score >= 55) verdict = "watch";
+    const sid = ("b" + r.k + ":" + r.seg + ":" + r.started_at).slice(0, 48);
+    stmts.push(env.DB.prepare(
+      `INSERT OR REPLACE INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).bind(
+      sid,
+      r.k && !String(r.k).startsWith("ip:") ? r.k : "",
+      r.ip,
+      isAd ? "naver" : "",
+      isAd ? 1 : 0,
+      r.started_at,
+      r.last_at,
+      sec * 1e3,
+      pages,
+      r.moved || 0,
+      pages,
+      String(r.asn || ""),
+      r.region || "",
+      r.org || "",
+      r.country || "",
+      String(r.ua || "").slice(0, 200),
+      String(r.kw || ""),
+      score,
+      verdict,
+      isAd ? "\uC7AC\uC9D1\uACC4" : ""
+    ));
+  }
+  await env.DB.prepare("DELETE FROM visits WHERE sid LIKE 'b%' AND started_at >= ? AND started_at < ?").bind(from, to).run();
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+  const nowK = new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
+  const done = !list.length || to > nowK;
+  await setSet(env, "reindex_from", done ? nowK : to);
+  return json({ ok: true, done, from, to, inserted: list.length, next: done ? null : to });
+}
+__name(reindexBatch, "reindexBatch");
+async function onRequestPost9(context) {
+  const { request, env } = context;
+  const WA = context.waitUntil ? context.waitUntil.bind(context) : (p) => {
+    p && p.catch && p.catch(() => {
+    });
+  };
   if (!env.ADMIN_PASSWORD) return json({ ok: false, error: "ADMIN_NOT_CONFIGURED" }, 500);
   if (!env.DB) return json({ ok: false, error: "DB_NOT_BOUND" }, 500);
   let b = {};
@@ -745,7 +897,9 @@ async function onRequestPost9({ request, env }) {
          FROM click_logs WHERE created_at >= ${win} AND action <> 'test'`
     ).first();
     const bl = await env.DB.prepare("SELECT COUNT(*) AS c FROM blocked_ips WHERE mode = 'block'").first();
-    return json({ ok: true, days, myIp: clientIP(request), stat: s || {}, pv: s2 || {}, blockedNow: (bl || {}).c || 0 });
+    const rx = await rxStatus(env);
+    if (rx.need) WA(reindexBatch(env).catch(() => null));
+    return json({ ok: true, days, myIp: clientIP(request), stat: s || {}, pv: s2 || {}, blockedNow: (bl || {}).c || 0, rx });
   }
   if (op === "visits") {
     const page = clampPage(b.page), per = clampPer(b.per);
@@ -766,7 +920,9 @@ async function onRequestPost9({ request, env }) {
     const rows = await env.DB.prepare(
       "SELECT * FROM visits " + where + " ORDER BY started_at DESC LIMIT ? OFFSET ?"
     ).bind(...binds, per, (page - 1) * per).all();
-    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
+    const rx = await rxStatus(env);
+    if (rx.need) WA(reindexBatch(env).catch(() => null));
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [], rx });
   }
   if (op === "detail") {
     const sid = String(b.sid || "");
@@ -790,7 +946,9 @@ async function onRequestPost9({ request, env }) {
         HAVING SUM(is_ad) >= 1 OR MAX(score) >= 60
         ORDER BY top DESC, sessions DESC LIMIT ? OFFSET ?`
     ).bind(per, (page - 1) * per).all();
-    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
+    const rx = await rxStatus(env);
+    if (rx.need) WA(reindexBatch(env).catch(() => null));
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [], rx });
   }
   if (op === "asn") {
     const rows = await env.DB.prepare(
@@ -821,123 +979,11 @@ async function onRequestPost9({ request, env }) {
          FROM click_logs WHERE created_at >= ${win} AND action <> 'test'
         ORDER BY id DESC LIMIT ? OFFSET ?`
     ).bind(per, (page - 1) * per).all();
-    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
+    const rx = await rxStatus(env);
+    if (rx.need) WA(reindexBatch(env).catch(() => null));
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [], rx });
   }
-  if (op === "reindex") {
-    let from = String(b.from || "").trim();
-    if (!from) {
-      const mn = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first("m");
-      if (!mn) return json({ ok: true, done: true, inserted: 0, msg: "\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." });
-      from = mn;
-    }
-    const toRow = await env.DB.prepare("SELECT datetime(?, '+10 days') AS t").bind(from).first();
-    const to = toRow.t;
-    const rows = await env.DB.prepare(
-      `WITH base AS (
-         SELECT id, ip, COALESCE(NULLIF(fp,''), 'ip:' || ip) AS k, is_naver, created_at,
-                COALESCE(dwell, 0) AS dwell, COALESCE(moved, 0) AS moved, asn, region, org, country, ua, keyword,
-                julianday(created_at) AS jd
-           FROM click_logs
-          WHERE action <> 'test' AND created_at >= ? AND created_at < ?
-       ),
-       g AS (SELECT *, CASE WHEN jd - LAG(jd) OVER (PARTITION BY k ORDER BY created_at) > 0.0208333 THEN 1 ELSE 0 END AS ns FROM base),
-       s AS (SELECT *, SUM(COALESCE(ns, 1)) OVER (PARTITION BY k ORDER BY created_at ROWS UNBOUNDED PRECEDING) AS seg FROM g)
-       SELECT k, seg, MIN(id) AS first_id, MAX(id) AS last_id, MAX(ip) AS ip, MAX(is_naver) AS is_ad,
-              COUNT(*) AS pages, SUM(dwell) AS sec, MAX(moved) AS moved,
-              MIN(created_at) AS started_at, MAX(created_at) AS last_at,
-              MAX(asn) AS asn, MAX(region) AS region, MAX(org) AS org, MAX(country) AS country, MAX(ua) AS ua, MAX(keyword) AS kw
-         FROM s GROUP BY k, seg ORDER BY MIN(created_at) ASC`
-    ).bind(from, to).all();
-    const list = rows.results || [];
-    const BOT = /(bot|crawl|spider|headless|phantom|selenium|puppeteer|playwright|curl|wget|python-requests|okhttp|scrapy|httpclient|java\/)/i;
-    const byIp = /* @__PURE__ */ new Map(), byFp = /* @__PURE__ */ new Map(), byAsn = /* @__PURE__ */ new Map();
-    list.forEach((r, i) => {
-      (byIp.get(r.ip) || byIp.set(r.ip, []).get(r.ip)).push(i);
-      if (r.k) (byFp.get(r.k) || byFp.set(r.k, []).get(r.k)).push(i);
-      if (r.asn) (byAsn.get(r.asn) || byAsn.set(r.asn, []).get(r.asn)).push(i);
-    });
-    const countWin = /* @__PURE__ */ __name((arr, i, min) => {
-      const t = (/* @__PURE__ */ new Date(list[i].started_at.replace(" ", "T") + "+09:00")).getTime();
-      let n = 0;
-      for (const j of arr) {
-        const u = (/* @__PURE__ */ new Date(list[j].started_at.replace(" ", "T") + "+09:00")).getTime();
-        if (Math.abs(u - t) <= min * 6e4 && list[j].is_ad) n++;
-      }
-      return n;
-    }, "countWin");
-    const stmts = [];
-    for (let i = 0; i < list.length; i++) {
-      const r = list[i];
-      const isAd = !!r.is_ad;
-      const sec = Number(r.sec) || 0;
-      const pages = Number(r.pages) || 1;
-      let score = 0;
-      if (isAd) {
-        const ipAd = countWin(byIp.get(r.ip) || [], i, 30);
-        const fpAd = r.k ? countWin(byFp.get(r.k) || [], i, 30) : 0;
-        const ipSet = /* @__PURE__ */ new Set();
-        (byFp.get(r.k) || []).forEach((j) => {
-          if (list[j].is_ad) ipSet.add(list[j].ip);
-        });
-        const fpIps = ipSet.size;
-        const host = /(google|amazon|aws|digitalocean|vultr|ovh|hetzner|microsoft|azure|oracle|alibaba|tencent|contabo|linode|m247|leaseweb|colocrossing|hostinger|namecheap|proxy|vpn)/i.test(r.org || "");
-        if (ipAd >= 10) score += 100;
-        else if (ipAd >= 6) score += 75;
-        else if (ipAd >= 4) score += 55;
-        else if (ipAd >= 3) score += 35;
-        if (fpAd >= 8) score += 110;
-        else if (fpAd >= 5) score += 80;
-        else if (fpAd >= 4) score += 55;
-        else if (fpAd >= 3) score += 35;
-        if (fpIps >= 3) score += 80;
-        else if (fpIps >= 2) score += 45;
-        const carrier = /(skt|kt |lgu|lg u\+|korea telecom|sk broadband|sk telink|hello)/i.test(r.org || "");
-        if (r.asn && !carrier) {
-          const asnAd = countWin(byAsn.get(r.asn) || [], i, 30);
-          if (asnAd >= 8) score += 65;
-          else if (asnAd >= 5) score += 45;
-          else if (asnAd >= 3) score += 25;
-        }
-        if (BOT.test(r.ua || "")) score += 60;
-        if (host) score += 50;
-      }
-      score = Math.max(0, Math.round(score));
-      let verdict = "normal";
-      if (score >= 105) verdict = "block";
-      else if (score >= 75) verdict = "warn";
-      else if (score >= 55) verdict = "watch";
-      const sid = ("b" + r.k + ":" + r.seg + ":" + r.started_at).slice(0, 48);
-      stmts.push(env.DB.prepare(
-        `INSERT OR REPLACE INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-      ).bind(
-        sid,
-        r.k && !String(r.k).startsWith("ip:") ? r.k : "",
-        r.ip,
-        isAd ? "naver" : "",
-        isAd ? 1 : 0,
-        r.started_at,
-        r.last_at,
-        sec * 1e3,
-        pages,
-        r.moved || 0,
-        pages,
-        String(r.asn || ""),
-        r.region || "",
-        r.org || "",
-        r.country || "",
-        String(r.ua || "").slice(0, 200),
-        String(r.kw || ""),
-        score,
-        verdict,
-        isAd ? "\uC7AC\uC9D1\uACC4" : ""
-      ));
-    }
-    await env.DB.prepare("DELETE FROM visits WHERE started_at >= ? AND started_at < ?").bind(from, to).run();
-    for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
-    const done = !list.length || to > new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
-    return json({ ok: true, done, from, to, inserted: list.length, next: done ? null : to });
-  }
+  if (op === "reindex") return json(await reindexBatch(env, b.from));
   if (op === "export") {
     const rows = await env.DB.prepare(
       `SELECT started_at, ip, fp, total_ms, pages, score, verdict, reasons
@@ -1260,7 +1306,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-ft_h9_kq/.wrangler/tmp/pages-Wr3OpU/functionsRoutes-0.14528630562826894.mjs
+// ../../../../../../tmp/lg-worker-ehhkcd_z/.wrangler/tmp/pages-PaHsT3/functionsRoutes-0.31900910947773475.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",
