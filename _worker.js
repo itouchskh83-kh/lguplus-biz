@@ -1013,7 +1013,11 @@ async function onRequestPost10(context) {
   const kw = String(b.q || "").slice(0, 80);
   const path = String(b.p || "/").slice(0, 200);
   const fp = String(b.f || "").slice(0, 40);
-  const sid = String(b.s || "").slice(0, 48);
+  let sid = String(b.s || "").slice(0, 48);
+  if (!sid) {
+    const bucket = Math.floor((Date.now() + 9 * 36e5) / (30 * 60 * 1e3));
+    sid = ("srv" + bucket.toString(36) + ":" + (fp || ip || "x")).slice(0, 48);
+  }
   const isKnown = b.n === 1 ? 1 : 0;
   const actMs = Math.max(0, Math.min(MAX_ACT, Number(b.a) || 0));
   const asn = String(cf.asn || "");
@@ -1159,7 +1163,8 @@ async function onRequestPost10(context) {
     carrier: isCarrier(org),
     converted: false
   });
-  if (sid) {
+  let dbErr = null;
+  try {
     await env.DB.prepare(
       `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -1187,7 +1192,9 @@ async function onRequestPost10(context) {
       ev.score,
       ev.verdict,
       ev.reasons.join(" / ")
-    ).run().catch(() => null);
+    ).run();
+  } catch (e) {
+    dbErr = String(e && e.message || e).slice(0, 200);
   }
   let action = whitelisted ? "allow" : ev.verdict === "block" ? "block" : ev.verdict === "warn" ? "warn" : "allow";
   let stage = ev.verdict === "block" ? 3 : ev.verdict === "warn" ? 2 : ev.verdict === "watch" ? 1 : 0;
@@ -1232,7 +1239,10 @@ async function onRequestPost10(context) {
     region,
     org,
     src,
-    id: logId
+    id: logId,
+    sid,
+    kw,
+    dbErr
   });
 }
 __name(onRequestPost10, "onRequestPost");
@@ -1250,7 +1260,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-js9ouu9p/.wrangler/tmp/pages-5YKW3t/functionsRoutes-0.6087200272921227.mjs
+// ../../../../../../tmp/lg-worker-ft_h9_kq/.wrangler/tmp/pages-Wr3OpU/functionsRoutes-0.14528630562826894.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",

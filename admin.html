@@ -273,6 +273,7 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
         if(!j.ok){ sessionStorage.removeItem("adm"); $("loginBox").style.display=""; $("admErr").textContent="비밀번호가 올바르지 않습니다."; return; }
         $("loginBox").style.display="none";
         var _sb=$("listBox"); if(_sb){ _sb.style.display="flex"; _sb.classList.add("is-on"); }
+        $("loginBox").style.display="none";
         ST.post={page:j.page||1,pages:j.pages||1,total:j.total||0};
         $("admList").innerHTML = (j.list||[]).length ? j.list.map(postCard).join("") : '<div class="card">등록된 문의가 없습니다.</div>';
         pager($("admPager"),ST.post,loadPosts);
