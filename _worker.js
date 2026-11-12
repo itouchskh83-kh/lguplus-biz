@@ -1243,7 +1243,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-llmd557x/.wrangler/tmp/pages-lxUVGj/functionsRoutes-0.4924634295303709.mjs
+// ../../../../../../tmp/lg-worker-g9gm1lcx/.wrangler/tmp/pages-ZRMh1b/functionsRoutes-0.949023261561792.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",
