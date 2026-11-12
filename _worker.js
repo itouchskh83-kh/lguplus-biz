@@ -393,7 +393,6 @@ __name(notifyBlock, "notifyBlock");
 
 // api/_smartlog.js
 var RETENTION_DAYS = 365;
-var WINDOW_MIN = 30;
 var STAGE = { watch: 55, warn: 75, block: 105 };
 var HOSTING = [
   "google",
@@ -442,7 +441,6 @@ var HOSTING = [
   "vpn"
 ];
 var CARRIER = ["skt", "kt", "lgu", "lg u+", "samsung", "korea telecom", "sk broadband", "hello", "sk telink"];
-var BOT_UA = /(bot|crawl|spider|headless|phantom|selenium|puppeteer|playwright|curl|wget|python-requests|okhttp|scrapy|httpclient|java\/)/i;
 var NAVER_AD_PARAMS = ["n_media", "n_query", "n_rank", "n_ad", "n_ad_group", "n_keyword", "n_keyword_id", "n_match", "n_campaign_type", "n_ad_group_type"];
 function detectSource(ref, kw, qs) {
   let host = "";
@@ -508,88 +506,110 @@ async function maybePurge(env) {
   }
 }
 __name(maybePurge, "maybePurge");
-function evaluate(c) {
+function judgeSession(c) {
   const why = [];
-  if (!c.isAd) {
-    const bad = BOT_UA.test(c.ua || "") && isHosting(c.org) ? 1 : 0;
-    return { score: bad ? 60 : 0, reasons: bad ? ["\uBD07+\uD638\uC2A4\uD305"] : [], action: "allow", stage: 0 };
-  }
   let s = 0;
-  if (c.ipHits >= 10) {
-    s += 100;
-    why.push(`\uB3D9\uC77C IP ${c.ipHits}\uD68C \uAD11\uACE0 \uD074\uB9AD`);
-  } else if (c.ipHits >= 6) {
-    s += 75;
-    why.push(`\uB3D9\uC77C IP ${c.ipHits}\uD68C \uAD11\uACE0 \uD074\uB9AD`);
-  } else if (c.ipHits >= 4) {
-    s += 55;
-    why.push(`\uB3D9\uC77C IP ${c.ipHits}\uD68C \uAD11\uACE0 \uD074\uB9AD`);
-  } else if (c.ipHits >= 3) {
-    s += 35;
-    why.push(`\uB3D9\uC77C IP ${c.ipHits}\uD68C \uAD11\uACE0 \uD074\uB9AD`);
+  if (c.isAd) {
+    if (c.ipAd >= 10) {
+      s += 100;
+      why.push(`\uAC19\uC740 IP \uAD11\uACE0 ${c.ipAd}\uD68C`);
+    } else if (c.ipAd >= 6) {
+      s += 75;
+      why.push(`\uAC19\uC740 IP \uAD11\uACE0 ${c.ipAd}\uD68C`);
+    } else if (c.ipAd >= 4) {
+      s += 55;
+      why.push(`\uAC19\uC740 IP \uAD11\uACE0 ${c.ipAd}\uD68C`);
+    } else if (c.ipAd >= 3) {
+      s += 35;
+      why.push(`\uAC19\uC740 IP \uAD11\uACE0 ${c.ipAd}\uD68C`);
+    }
+    if (c.fpAd >= 8) {
+      s += 110;
+      why.push(`\uAC19\uC740 \uAE30\uAE30 \uAD11\uACE0 ${c.fpAd}\uD68C`);
+    } else if (c.fpAd >= 5) {
+      s += 80;
+      why.push(`\uAC19\uC740 \uAE30\uAE30 \uAD11\uACE0 ${c.fpAd}\uD68C`);
+    } else if (c.fpAd >= 4) {
+      s += 55;
+      why.push(`\uAC19\uC740 \uAE30\uAE30 \uAD11\uACE0 ${c.fpAd}\uD68C`);
+    } else if (c.fpAd >= 3) {
+      s += 35;
+      why.push(`\uAC19\uC740 \uAE30\uAE30 \uAD11\uACE0 ${c.fpAd}\uD68C`);
+    }
+    if (c.fpIps >= 3) {
+      s += 80;
+      why.push(`\uAE30\uAE30\uB2F9 IP ${c.fpIps}\uAC1C`);
+    } else if (c.fpIps >= 2) {
+      s += 45;
+      why.push(`\uAE30\uAE30\uB2F9 IP ${c.fpIps}\uAC1C`);
+    }
   }
-  if (c.fpHits >= 8) {
-    s += 110;
-    why.push(`\uB3D9\uC77C \uAE30\uAE30 ${c.fpHits}\uD68C`);
-  } else if (c.fpHits >= 5) {
-    s += 80;
-    why.push(`\uB3D9\uC77C \uAE30\uAE30 ${c.fpHits}\uD68C`);
-  } else if (c.fpHits >= 4) {
-    s += 55;
-    why.push(`\uB3D9\uC77C \uAE30\uAE30 ${c.fpHits}\uD68C`);
-  } else if (c.fpHits >= 3) {
-    s += 35;
-    why.push(`\uB3D9\uC77C \uAE30\uAE30 ${c.fpHits}\uD68C`);
+  if (c.isAd && c.asnAd >= 3 && !c.carrier) {
+    if (c.asnAd >= 8) {
+      s += 65;
+      why.push(`\uAC19\uC740 \uB300\uC5ED \uAD11\uACE0 ${c.asnAd}\uD68C`);
+    } else if (c.asnAd >= 5) {
+      s += 45;
+      why.push(`\uAC19\uC740 \uB300\uC5ED \uAD11\uACE0 ${c.asnAd}\uD68C`);
+    } else {
+      s += 25;
+      why.push(`\uAC19\uC740 \uB300\uC5ED \uAD11\uACE0 ${c.asnAd}\uD68C`);
+    }
   }
-  if (c.fpIps >= 3) {
-    s += 80;
-    why.push(`IP \uBCC0\uACBD ${c.fpIps}\uD68C`);
-  } else if (c.fpIps >= 2) {
-    s += 45;
-    why.push(`IP \uBCC0\uACBD ${c.fpIps}\uD68C`);
-  }
-  if (BOT_UA.test(c.ua || "")) {
+  if (c.bot) {
     s += 60;
     why.push("\uC790\uB3D9\uD654 \uD504\uB85C\uADF8\uB7A8");
   }
-  if (isHosting(c.org)) {
+  if (c.hosting) {
     s += 50;
     why.push("\uD638\uC2A4\uD305/VPN \uB300\uC5ED");
-  } else if (isCarrier(c.org)) {
+  } else if (c.carrier) {
     s -= 25;
     why.push("\uAD6D\uB0B4 \uD1B5\uC2E0\uC0AC(\uAC10\uC810)");
   }
-  if (c.dwell !== null && c.dwell < 2) {
-    s += 20;
-    why.push("\uC989\uC2DC \uC774\uD0C8");
+  s = Math.max(0, Math.round(s));
+  let verdict = "normal";
+  if (s >= STAGE.block) verdict = "block";
+  else if (s >= STAGE.warn) verdict = "warn";
+  else if (s >= STAGE.watch) verdict = "watch";
+  if (c.converted) {
+    verdict = "normal";
+    s = Math.min(s, 40);
   }
-  if (c.moved === 0) {
-    s += 15;
-    why.push("\uC0AC\uB78C \uD65C\uB3D9 \uC5C6\uC74C");
-  }
-  if (c.depth === 1 && c.ipHits >= 3) {
-    s += 10;
-    why.push("\uB2E8\uC77C \uD398\uC774\uC9C0\uB9CC \uC5F4\uB78C");
-  }
-  if (c.isKnown === 0 && c.ipHits >= 3) {
-    s += 15;
-    why.push("\uCFE0\uD0A4 \uC0AD\uC81C \uD6C4 \uC7AC\uC720\uC785");
-  }
-  s = Math.max(0, s);
-  let action = "allow", stage = 0;
-  if (s >= STAGE.block) {
-    action = "block";
-    stage = 3;
-  } else if (s >= STAGE.warn) {
-    action = "warn";
-    stage = 2;
-  } else if (s >= STAGE.watch) {
-    action = "warn";
-    stage = 1;
-  }
-  return { score: s, reasons: why, action, stage };
+  return { score: s, verdict, reasons: why };
 }
-__name(evaluate, "evaluate");
+__name(judgeSession, "judgeSession");
+var _schemaReady = false;
+async function ensureSchema(env) {
+  if (_schemaReady || !env || !env.DB) return;
+  try {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS visits (
+      sid TEXT PRIMARY KEY, fp TEXT, ip TEXT, src TEXT, is_ad INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT NOT NULL, last_at TEXT, total_ms INTEGER NOT NULL DEFAULT 0,
+      pages INTEGER NOT NULL DEFAULT 1, moved INTEGER NOT NULL DEFAULT 0,
+      depth INTEGER NOT NULL DEFAULT 1, asn TEXT, region TEXT, org TEXT, country TEXT, ua TEXT,
+      score INTEGER NOT NULL DEFAULT 0, verdict TEXT NOT NULL DEFAULT 'normal', reasons TEXT)`).run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_time ON visits (started_at DESC)").run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ip ON visits (ip, started_at DESC)").run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_fp ON visits (fp, started_at DESC)").run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ad ON visits (is_ad, started_at DESC)").run();
+    try {
+      await env.DB.prepare("ALTER TABLE click_logs ADD COLUMN sid TEXT").run();
+    } catch (e) {
+    }
+    try {
+      await env.DB.prepare("ALTER TABLE click_logs ADD COLUMN act_ms INTEGER").run();
+    } catch (e) {
+    }
+    try {
+      await env.DB.prepare("ALTER TABLE visits ADD COLUMN asn TEXT").run();
+    } catch (e) {
+    }
+    _schemaReady = true;
+  } catch (e) {
+  }
+}
+__name(ensureSchema, "ensureSchema");
 
 // api/posts.js
 async function onRequestGet({ request, env }) {
@@ -681,9 +701,11 @@ async function onRequestPost8(context) {
 __name(onRequestPost8, "onRequestPost");
 
 // api/smartlog.js
+var clampDays = /* @__PURE__ */ __name((v) => Math.min(365, Math.max(1, parseInt(v || "7", 10) || 7)), "clampDays");
+var clampPage = /* @__PURE__ */ __name((v) => Math.max(1, parseInt(v || "1", 10) || 1), "clampPage");
+var clampPer = /* @__PURE__ */ __name((v) => Math.min(100, Math.max(5, parseInt(v || "20", 10) || 20)), "clampPer");
 function csvCell(v) {
-  const s = String(v == null ? "" : v).replace(/"/g, '""');
-  return '"' + s + '"';
+  return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
 }
 __name(csvCell, "csvCell");
 async function onRequestPost9({ request, env }) {
@@ -696,184 +718,263 @@ async function onRequestPost9({ request, env }) {
     return json({ ok: false, error: "BAD_JSON" }, 400);
   }
   if (String(b.password || "") !== env.ADMIN_PASSWORD) return json({ ok: false, error: "UNAUTHORIZED" }, 401);
-  const op = String(b.op || "list");
-  if (op === "list") {
-    const days = Math.min(365, Math.max(1, parseInt(b.days || "7", 10) || 7));
-    const sus = await env.DB.prepare(
-      `SELECT ip, COUNT(*) AS hits, MAX(score) AS top, SUM(is_naver) AS naver,
-              MAX(created_at) AS last, MAX(org) AS org, MAX(region) AS region,
-              MAX(reason) AS reason, COUNT(DISTINCT fp) AS devices,
-              ROUND(AVG(dwell),1) AS dwell, MAX(depth) AS depth
-         FROM click_logs
-        WHERE created_at >= datetime('now','+9 hours','-${days} days')
-          AND action <> 'test'
-          AND reason <> '\uB0B4\uBD80 \uC774\uB3D9'
-        GROUP BY ip
-        HAVING hits >= 3 OR top >= 45
-        ORDER BY top DESC, hits DESC
-        LIMIT 300`
-    ).all();
-    const blocked = await env.DB.prepare(
-      `SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300`
-    ).all();
-    const stat = await env.DB.prepare(
-      `SELECT COUNT(*) AS total,
-              SUM(CASE WHEN action='block' THEN 1 ELSE 0 END) AS blocked,
-              SUM(CASE WHEN action='warn'  THEN 1 ELSE 0 END) AS warned,
-              SUM(CASE WHEN is_naver=1 THEN 1 ELSE 0 END) AS ad,
-              SUM(CASE WHEN is_naver=0 AND reason='\uC790\uC5F0\uAC80\uC0C9' THEN 1 ELSE 0 END) AS organic,
-              SUM(CASE WHEN is_naver=0 AND reason='\uC9C1\uC811\uBC29\uBB38' THEN 1 ELSE 0 END) AS direct,
-              SUM(CASE WHEN is_naver=0 AND reason='\uB0B4\uBD80 \uC774\uB3D9' THEN 1 ELSE 0 END) AS internal,
-              SUM(CASE WHEN is_naver=1 AND keyword IS NOT NULL AND keyword<>'' THEN 1 ELSE 0 END) AS kword,
+  await ensureSchema(env);
+  const op = String(b.op || "summary");
+  const days = clampDays(b.days);
+  const win = `datetime('now','+9 hours','-${days} days')`;
+  if (op === "summary") {
+    const s = await env.DB.prepare(
+      `SELECT COUNT(*) AS visits,
+              SUM(CASE WHEN is_ad = 1 THEN 1 ELSE 0 END) AS ad,
+              SUM(CASE WHEN is_ad = 0 THEN 1 ELSE 0 END) AS nonad,
+              SUM(CASE WHEN is_ad = 1 THEN total_ms ELSE 0 END) AS ad_ms,
+              SUM(CASE WHEN is_ad = 1 AND total_ms < 3000 THEN 1 ELSE 0 END) AS bounce,
+              SUM(CASE WHEN verdict = 'block' THEN 1 ELSE 0 END) AS blocked,
+              SUM(CASE WHEN verdict = 'warn' THEN 1 ELSE 0 END) AS warned,
+              SUM(CASE WHEN verdict = 'watch' THEN 1 ELSE 0 END) AS watched,
+              ROUND(AVG(pages), 1) AS avg_pages,
               COUNT(DISTINCT ip) AS ips, COUNT(DISTINCT fp) AS devices
-         FROM click_logs
-        WHERE created_at >= datetime('now','+9 hours','-${days} days')
-          AND action <> 'test'`
+         FROM visits WHERE started_at >= ${win}`
     ).first();
-    const tstat = await env.DB.prepare(
-      `SELECT COUNT(*) AS n, MAX(created_at) AS last FROM click_logs
-        WHERE action='test' AND created_at >= datetime('now','+9 hours','-${days} days')`
+    const s2 = await env.DB.prepare(
+      `SELECT COUNT(*) AS pv, SUM(CASE WHEN reason = '\uB0B4\uBD80 \uC774\uB3D9' THEN 1 ELSE 0 END) AS internal
+         FROM click_logs WHERE created_at >= ${win} AND action <> 'test'`
     ).first();
-    const logs = await env.DB.prepare(
-      `SELECT id, ip, fp, ref, keyword, path, is_naver, score, action, reason, region, org, country,
-              dwell, depth, created_at,
-              (SELECT COUNT(*) FROM click_logs v WHERE v.ip = click_logs.ip AND v.action <> 'test') AS ip_visits,
-              (CASE WHEN click_logs.fp IS NULL OR click_logs.fp = '' THEN 0
-                    ELSE (SELECT COUNT(*) FROM click_logs v WHERE v.fp = click_logs.fp AND v.action <> 'test') END) AS fp_visits
-         FROM click_logs
-        WHERE created_at >= datetime('now','+9 hours','-${days} days')
-          AND action <> 'test'
-          AND reason <> '\uB0B4\uBD80 \uC774\uB3D9'
-        ORDER BY id DESC LIMIT 100`
-    ).all();
-    return json({ ok: true, days, myIp: clientIP(request), stat: stat || {}, test: tstat || {}, logs: logs.results || [], suspicious: sus.results || [], blocked: blocked.results || [] });
+    const bl = await env.DB.prepare("SELECT COUNT(*) AS c FROM blocked_ips WHERE mode = 'block'").first();
+    return json({ ok: true, days, myIp: clientIP(request), stat: s || {}, pv: s2 || {}, blockedNow: (bl || {}).c || 0 });
   }
-  if (op === "reset") {
-    const what = String(b.target || "logs");
-    if (what === "all") {
-      await env.DB.prepare("DELETE FROM click_logs").run();
-      await env.DB.prepare("DELETE FROM blocked_ips WHERE manual = 0").run();
-    } else {
-      await env.DB.prepare("DELETE FROM click_logs").run();
+  if (op === "visits") {
+    const page = clampPage(b.page), per = clampPer(b.per);
+    const src = String(b.src || "all"), verdict = String(b.verdict || "all"), q = String(b.q || "").trim();
+    let where = `WHERE started_at >= ${win}`;
+    const binds = [];
+    if (src === "ad") where += " AND is_ad = 1";
+    if (src === "nonad") where += " AND is_ad = 0";
+    if (verdict !== "all") {
+      where += " AND verdict = ?";
+      binds.push(verdict);
     }
-    return json({ ok: true, reset: what });
+    if (q) {
+      where += " AND (ip LIKE ? OR fp LIKE ?)";
+      binds.push("%" + q + "%", "%" + q + "%");
+    }
+    const total = await env.DB.prepare("SELECT COUNT(*) AS c FROM visits " + where).bind(...binds).first("c");
+    const rows = await env.DB.prepare(
+      "SELECT * FROM visits " + where + " ORDER BY started_at DESC LIMIT ? OFFSET ?"
+    ).bind(...binds, per, (page - 1) * per).all();
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
   }
-  if (op === "block") {
-    const ip = String(b.ip || "").trim();
-    if (!ip) return json({ ok: false, error: "NO_IP" }, 400);
-    const hours = parseInt(b.hours || "0", 10);
-    const until = hours > 0 ? new Date(Date.now() + 9 * 36e5 + hours * 36e5).toISOString().slice(0, 19).replace("T", " ") : null;
-    await env.DB.prepare(
-      `INSERT INTO blocked_ips (ip, mode, reason, score, manual, note, blocked_until)
-       VALUES (?, 'block', ?, 999, 1, ?, ?)
-       ON CONFLICT(ip) DO UPDATE SET mode='block', manual=1, reason=excluded.reason,
-         note=excluded.note, blocked_until=excluded.blocked_until`
-    ).bind(ip, String(b.reason || "\uAD00\uB9AC\uC790 \uCC28\uB2E8"), String(b.note || ""), until).run();
-    await notifyBlock(env, {
-      ip,
-      score: 999,
-      hits: 0,
-      reason: "\uAD00\uB9AC\uC790 \uC9C1\uC811 \uCC28\uB2E8",
-      region: "-",
-      org: String(b.note || ""),
-      blockedUntil: until || "\uC601\uAD6C",
-      path: "-",
-      keyword: ""
+  if (op === "detail") {
+    const sid = String(b.sid || "");
+    const v = await env.DB.prepare("SELECT * FROM visits WHERE sid = ?").bind(sid).first();
+    const l = await env.DB.prepare(
+      `SELECT id, path, ref, keyword, created_at, dwell, act_ms, moved, reason
+         FROM click_logs WHERE sid = ? ORDER BY id ASC LIMIT 60`
+    ).bind(sid).all();
+    return json({ ok: true, visit: v || null, logs: l.results || [] });
+  }
+  if (op === "suspicious") {
+    const page = clampPage(b.page), per = clampPer(b.per);
+    const base = `FROM visits WHERE started_at >= ${win} AND (is_ad = 1 OR score >= 60)`;
+    const total = await env.DB.prepare("SELECT COUNT(DISTINCT ip) AS c " + base).first("c");
+    const rows = await env.DB.prepare(
+      `SELECT ip, COUNT(*) AS sessions, SUM(is_ad) AS ad_sessions, MAX(score) AS top,
+              COUNT(DISTINCT fp) AS devices, SUM(total_ms) AS ms, MAX(region) AS region,
+              MAX(org) AS org, MAX(last_at) AS last, MAX(reasons) AS reason
+         ${base}
+        GROUP BY ip
+        HAVING SUM(is_ad) >= 1 OR MAX(score) >= 60
+        ORDER BY top DESC, sessions DESC LIMIT ? OFFSET ?`
+    ).bind(per, (page - 1) * per).all();
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
+  }
+  if (op === "asn") {
+    const rows = await env.DB.prepare(
+      `SELECT asn, MAX(org) AS org, COUNT(*) AS sessions, SUM(is_ad) AS ad_sessions,
+              COUNT(DISTINCT ip) AS ips, COUNT(DISTINCT fp) AS devices,
+              MAX(score) AS top, SUM(total_ms) AS ms, MAX(region) AS region, MAX(last_at) AS last
+         FROM visits
+        WHERE started_at >= ${win} AND asn IS NOT NULL AND asn <> ''
+          AND (is_ad = 1 OR score >= 60)
+        GROUP BY asn
+        HAVING SUM(is_ad) >= 2 AND COUNT(DISTINCT ip) >= 2
+        ORDER BY ad_sessions DESC, top DESC LIMIT 30`
+    ).all();
+    return json({ ok: true, list: rows.results || [] });
+  }
+  if (op === "blocked") {
+    const rows = await env.DB.prepare("SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300").all();
+    return json({ ok: true, list: rows.results || [] });
+  }
+  if (op === "logs") {
+    const page = clampPage(b.page), per = clampPer(b.per, 30);
+    const total = await env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM click_logs WHERE created_at >= ${win} AND action <> 'test'`
+    ).first("c");
+    const rows = await env.DB.prepare(
+      `SELECT id, ip, fp, sid, path, ref, keyword, is_naver, score, action, reason, region,
+              dwell, act_ms, created_at
+         FROM click_logs WHERE created_at >= ${win} AND action <> 'test'
+        ORDER BY id DESC LIMIT ? OFFSET ?`
+    ).bind(per, (page - 1) * per).all();
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [] });
+  }
+  if (op === "reindex") {
+    let from = String(b.from || "").trim();
+    if (!from) {
+      const mn = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first("m");
+      if (!mn) return json({ ok: true, done: true, inserted: 0, msg: "\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." });
+      from = mn;
+    }
+    const toRow = await env.DB.prepare("SELECT datetime(?, '+10 days') AS t").bind(from).first();
+    const to = toRow.t;
+    const rows = await env.DB.prepare(
+      `WITH base AS (
+         SELECT id, ip, COALESCE(NULLIF(fp,''), 'ip:' || ip) AS k, is_naver, created_at,
+                COALESCE(dwell, 0) AS dwell, COALESCE(moved, 0) AS moved, asn, region, org, country, ua,
+                julianday(created_at) AS jd
+           FROM click_logs
+          WHERE action <> 'test' AND created_at >= ? AND created_at < ?
+       ),
+       g AS (SELECT *, CASE WHEN jd - LAG(jd) OVER (PARTITION BY k ORDER BY created_at) > 0.0208333 THEN 1 ELSE 0 END AS ns FROM base),
+       s AS (SELECT *, SUM(COALESCE(ns, 1)) OVER (PARTITION BY k ORDER BY created_at ROWS UNBOUNDED PRECEDING) AS seg FROM g)
+       SELECT k, seg, MIN(id) AS first_id, MAX(id) AS last_id, MAX(ip) AS ip, MAX(is_naver) AS is_ad,
+              COUNT(*) AS pages, SUM(dwell) AS sec, MAX(moved) AS moved,
+              MIN(created_at) AS started_at, MAX(created_at) AS last_at,
+              MAX(asn) AS asn, MAX(region) AS region, MAX(org) AS org, MAX(country) AS country, MAX(ua) AS ua
+         FROM s GROUP BY k, seg ORDER BY MIN(created_at) ASC`
+    ).bind(from, to).all();
+    const list = rows.results || [];
+    const BOT = /(bot|crawl|spider|headless|phantom|selenium|puppeteer|playwright|curl|wget|python-requests|okhttp|scrapy|httpclient|java\/)/i;
+    const byIp = /* @__PURE__ */ new Map(), byFp = /* @__PURE__ */ new Map(), byAsn = /* @__PURE__ */ new Map();
+    list.forEach((r, i) => {
+      (byIp.get(r.ip) || byIp.set(r.ip, []).get(r.ip)).push(i);
+      if (r.k) (byFp.get(r.k) || byFp.set(r.k, []).get(r.k)).push(i);
+      if (r.asn) (byAsn.get(r.asn) || byAsn.set(r.asn, []).get(r.asn)).push(i);
     });
-    return json({ ok: true });
-  }
-  if (op === "allow") {
-    const ip = String(b.ip || "").trim();
-    if (!ip) return json({ ok: false, error: "NO_IP" }, 400);
-    await env.DB.prepare(
-      `INSERT INTO blocked_ips (ip, mode, reason, score, manual, note, blocked_until)
-       VALUES (?, 'allow', '\uD5C8\uC6A9 \uBAA9\uB85D', 0, 1, ?, NULL)
-       ON CONFLICT(ip) DO UPDATE SET mode='allow', manual=1, blocked_until=NULL`
-    ).bind(ip, String(b.note || "")).run();
-    return json({ ok: true });
-  }
-  if (op === "unblock") {
-    const ip = String(b.ip || "").trim();
-    await env.DB.prepare("DELETE FROM blocked_ips WHERE ip = ?").bind(ip).run();
-    return json({ ok: true });
+    const countWin = /* @__PURE__ */ __name((arr, i, min) => {
+      const t = (/* @__PURE__ */ new Date(list[i].started_at.replace(" ", "T") + "+09:00")).getTime();
+      let n = 0;
+      for (const j of arr) {
+        const u = (/* @__PURE__ */ new Date(list[j].started_at.replace(" ", "T") + "+09:00")).getTime();
+        if (Math.abs(u - t) <= min * 6e4 && list[j].is_ad) n++;
+      }
+      return n;
+    }, "countWin");
+    const stmts = [];
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      const isAd = !!r.is_ad;
+      const sec = Number(r.sec) || 0;
+      const pages = Number(r.pages) || 1;
+      let score = 0;
+      if (isAd) {
+        const ipAd = countWin(byIp.get(r.ip) || [], i, 30);
+        const fpAd = r.k ? countWin(byFp.get(r.k) || [], i, 30) : 0;
+        const ipSet = /* @__PURE__ */ new Set();
+        (byFp.get(r.k) || []).forEach((j) => {
+          if (list[j].is_ad) ipSet.add(list[j].ip);
+        });
+        const fpIps = ipSet.size;
+        const host = /(google|amazon|aws|digitalocean|vultr|ovh|hetzner|microsoft|azure|oracle|alibaba|tencent|contabo|linode|m247|leaseweb|colocrossing|hostinger|namecheap|proxy|vpn)/i.test(r.org || "");
+        if (ipAd >= 10) score += 100;
+        else if (ipAd >= 6) score += 75;
+        else if (ipAd >= 4) score += 55;
+        else if (ipAd >= 3) score += 35;
+        if (fpAd >= 8) score += 110;
+        else if (fpAd >= 5) score += 80;
+        else if (fpAd >= 4) score += 55;
+        else if (fpAd >= 3) score += 35;
+        if (fpIps >= 3) score += 80;
+        else if (fpIps >= 2) score += 45;
+        const carrier = /(skt|kt |lgu|lg u\+|korea telecom|sk broadband|sk telink|hello)/i.test(r.org || "");
+        if (r.asn && !carrier) {
+          const asnAd = countWin(byAsn.get(r.asn) || [], i, 30);
+          if (asnAd >= 8) score += 65;
+          else if (asnAd >= 5) score += 45;
+          else if (asnAd >= 3) score += 25;
+        }
+        if (BOT.test(r.ua || "")) score += 60;
+        if (host) score += 50;
+      }
+      score = Math.max(0, Math.round(score));
+      let verdict = "normal";
+      if (score >= 105) verdict = "block";
+      else if (score >= 75) verdict = "warn";
+      else if (score >= 55) verdict = "watch";
+      const sid = ("b" + r.k + ":" + r.seg + ":" + r.started_at).slice(0, 48);
+      stmts.push(env.DB.prepare(
+        `INSERT OR REPLACE INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, score, verdict, reasons)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(
+        sid,
+        r.k && !String(r.k).startsWith("ip:") ? r.k : "",
+        r.ip,
+        isAd ? "naver" : "",
+        isAd ? 1 : 0,
+        r.started_at,
+        r.last_at,
+        sec * 1e3,
+        pages,
+        r.moved || 0,
+        pages,
+        String(r.asn || ""),
+        r.region || "",
+        r.org || "",
+        r.country || "",
+        String(r.ua || "").slice(0, 200),
+        score,
+        verdict,
+        isAd ? "\uC7AC\uC9D1\uACC4" : ""
+      ));
+    }
+    await env.DB.prepare("DELETE FROM visits WHERE started_at >= ? AND started_at < ?").bind(from, to).run();
+    for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+    const done = !list.length || to > new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
+    return json({ ok: true, done, from, to, inserted: list.length, next: done ? null : to });
   }
   if (op === "export") {
-    const days = Math.min(365, Math.max(1, parseInt(b.days || "30", 10) || 30));
     const rows = await env.DB.prepare(
-      `SELECT created_at, ip, fp, keyword, path, ref, score, action, reason, org, region, country, dwell, depth, ua
-         FROM click_logs
-        WHERE created_at >= datetime('now','+9 hours','-${days} days')
-        ORDER BY created_at DESC LIMIT 20000`
+      `SELECT started_at, ip, fp, total_ms, pages, score, verdict, reasons
+         FROM visits WHERE started_at >= ${win} AND (is_ad = 1 OR score >= 60)
+        ORDER BY started_at DESC LIMIT 3000`
     ).all();
-    const head = ["\uC811\uC18D\uC77C\uC2DC", "IP", "\uAE30\uAE30\uC9C0\uBB38", "\uAC80\uC0C9\uD0A4\uC6CC\uB4DC", "\uBC29\uBB38\uACBD\uB85C", "\uC720\uC785URL", "\uC704\uD5D8\uC810\uC218", "\uD310\uC815", "\uD310\uC815\uC0AC\uC720", "\uD1B5\uC2E0\uC0AC/\uD638\uC2A4\uD305", "\uC811\uC18D\uC9C0\uC5ED", "\uAD6D\uAC00", "\uCCB4\uB958(\uCD08)", "\uD398\uC774\uC9C0\uC218", "\uBE0C\uB77C\uC6B0\uC800"];
+    const head = ["\uC77C\uC2DC", "IP", "\uAE30\uAE30\uC9C0\uBB38", "\uCD1D\uCCB4\uB958(\uCD08)", "\uD398\uC774\uC9C0", "\uC810\uC218", "\uD310\uC815", "\uC0AC\uC720"];
     const lines = [head.map(csvCell).join(",")];
-    for (const r of rows.results || []) {
-      lines.push([
-        r.created_at,
-        r.ip,
-        r.fp,
-        r.keyword,
-        r.path,
-        r.ref,
-        r.score,
-        r.action,
-        r.reason,
-        r.org,
-        r.region,
-        r.country,
-        r.dwell,
-        r.depth,
-        r.ua
-      ].map(csvCell).join(","));
-    }
-    return new Response("\uFEFF" + lines.join("\r\n"), {
-      headers: {
-        "content-type": "text/csv; charset=utf-8",
-        "content-disposition": 'attachment; filename="smartlog.csv"'
-      }
-    });
+    (rows.results || []).forEach((r) => lines.push([
+      r.started_at,
+      r.ip,
+      r.fp || "",
+      Math.round((r.total_ms || 0) / 1e3),
+      r.pages,
+      r.score,
+      r.verdict,
+      r.reasons || ""
+    ].map(csvCell).join(",")));
+    return json({ ok: true, csv: lines.join("\r\n"), count: (rows.results || []).length });
   }
-  if (op === "simulate") {
-    const ua = request.headers.get("user-agent") || "";
-    const org = String(request.cf && request.cf.asOrganization || "");
-    const rows = [];
-    for (let n = 1; n <= 10; n++) {
-      const ev = evaluate({
-        ipHits: n,
-        fpHits: n,
-        fpIps: Math.min(n, 3),
-        ua,
-        org,
-        isAd: true,
-        dwell: 8,
-        moved: 1,
-        depth: 3,
-        isKnown: 1
-      });
-      rows.push({
-        clicks: n,
-        score: ev.score,
-        action: ev.action,
-        stage: ev.stage,
-        reasons: ev.reasons.join(" / ")
-      });
+  if (op === "block" || op === "allow" || op === "unblock") {
+    const ip = String(b.ip || "").trim();
+    if (!ip) return json({ ok: false, error: "BAD_IP" }, 400);
+    if (op === "unblock") {
+      await env.DB.prepare("DELETE FROM blocked_ips WHERE ip = ? AND manual = 1").bind(ip).run();
+      return json({ ok: true });
     }
-    const ipChange = evaluate({
-      ipHits: 3,
-      fpHits: 4,
-      fpIps: 4,
-      ua,
-      org,
-      isAd: true,
-      dwell: 5,
-      moved: 1,
-      depth: 2,
-      isKnown: 0
-    });
-    return json({ ok: true, thresholds: STAGE, org, rows, ipChange });
+    const mode = op;
+    const hours = Math.max(0, parseInt(b.hours || "24", 10) || 0);
+    const until = mode === "allow" || !hours ? null : new Date(Date.now() + 9 * 36e5 + hours * 36e5).toISOString().slice(0, 19).replace("T", " ");
+    await env.DB.prepare(
+      `INSERT INTO blocked_ips (ip, mode, reason, score, hit_count, blocked_until, manual)
+       VALUES (?, ?, ?, 0, 0, ?, 1)
+       ON CONFLICT(ip) DO UPDATE SET mode = excluded.mode, reason = excluded.reason,
+         blocked_until = excluded.blocked_until, manual = 1`
+    ).bind(ip, mode, mode === "block" ? "\uAD00\uB9AC\uC790 \uC218\uB3D9 \uCC28\uB2E8" : "\uAD00\uB9AC\uC790 \uD5C8\uC6A9", until).run();
+    return json({ ok: true });
   }
-  if (op === "clearTest") {
-    await env.DB.prepare("DELETE FROM click_logs WHERE path LIKE '%sl_test%'").run();
+  if (op === "reset") {
+    await env.DB.prepare("DELETE FROM click_logs").run();
+    await env.DB.prepare("DELETE FROM visits").run();
+    await env.DB.prepare("DELETE FROM blocked_ips WHERE manual = 0").run();
     return json({ ok: true });
   }
   return json({ ok: false, error: "UNKNOWN_OP" }, 400);
@@ -881,6 +982,8 @@ async function onRequestPost9({ request, env }) {
 __name(onRequestPost9, "onRequestPost");
 
 // api/track.js
+var BOT_UA = /(bot|crawl|spider|headless|phantom|selenium|puppeteer|playwright|curl|wget|python-requests|okhttp|scrapy|httpclient|java\/)/i;
+var MAX_ACT = 30 * 60 * 1e3;
 function kst(offsetMs) {
   return new Date(Date.now() + 9 * 36e5 + (offsetMs || 0)).toISOString().slice(0, 19).replace("T", " ");
 }
@@ -897,6 +1000,7 @@ async function onRequestPost10(context) {
     b = await request.json();
   } catch {
   }
+  await ensureSchema(env);
   const ip = clientIP(request);
   const cf = request.cf || {};
   const ua = request.headers.get("user-agent") || "";
@@ -904,17 +1008,35 @@ async function onRequestPost10(context) {
   const kw = String(b.q || "").slice(0, 80);
   const path = String(b.p || "/").slice(0, 200);
   const fp = String(b.f || "").slice(0, 40);
+  const sid = String(b.s || "").slice(0, 48);
   const isKnown = b.n === 1 ? 1 : 0;
+  const actMs = Math.max(0, Math.min(MAX_ACT, Number(b.a) || 0));
+  const asn = String(cf.asn || "");
+  const region = [cf.region, cf.city].filter(Boolean).join(" ") || String(cf.colo || "");
+  const org = String(cf.asOrganization || "");
+  const country = String(cf.country || "");
   if (b.op === "upd" && b.id) {
     try {
-      await env.DB.prepare(
-        "UPDATE click_logs SET dwell = ?, depth = MAX(COALESCE(depth,1), ?), moved = MAX(COALESCE(moved,0), ?) WHERE id = ? AND ip = ?"
-      ).bind(dwell, depth, moved, b.id, ip).run();
+      const prev = await env.DB.prepare("SELECT act_ms, sid FROM click_logs WHERE id = ? AND ip = ?").bind(b.id, ip).first();
+      if (prev) {
+        const oldMs = Number(prev.act_ms) || 0;
+        const delta = Math.max(0, actMs - oldMs);
+        await env.DB.prepare(
+          "UPDATE click_logs SET act_ms = ?, dwell = ?, depth = MAX(COALESCE(depth,1), ?), moved = MAX(COALESCE(moved,0), ?) WHERE id = ?"
+        ).bind(actMs, Math.round(actMs / 1e3), typeof b.v === "number" ? b.v : 1, b.m === 1 ? 1 : 0, b.id).run();
+        if (delta > 0) {
+          const vsid = prev.sid || sid;
+          if (vsid) {
+            await env.DB.prepare(
+              "UPDATE visits SET total_ms = total_ms + ?, last_at = ?, moved = MAX(COALESCE(moved,0), ?) WHERE sid = ?"
+            ).bind(delta, kst(0), b.m === 1 ? 1 : 0, vsid).run();
+          }
+        }
+      }
     } catch (e) {
     }
     return json({ ok: true, action: "allow", stage: 0, updated: true });
   }
-  const dwell = typeof b.d === "number" ? b.d : null;
   const depth = typeof b.v === "number" ? b.v : 1;
   const moved = b.m === 1 ? 1 : 0;
   const selfHost = new URL(request.url).host;
@@ -931,17 +1053,13 @@ async function onRequestPost10(context) {
   } catch {
   }
   if (testMode) src = "naver";
-  const isNaver = src === "naver";
   const isAd = src === "naver" || src === "google";
   const uh = await uaHash(ua);
-  const region = [cf.region, cf.city].filter(Boolean).join(" ") || String(cf.colo || "");
-  const org = String(cf.asOrganization || "");
-  const country = String(cf.country || "");
   if (testMode) {
     const r = await env.DB.prepare(
-      `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known)
-       VALUES (?,?,?,?,?,?,?,0,0,'test','\uD14C\uC2A4\uD2B8',?,?,?,?,?,?,?,?)`
-    ).bind(ip, fp, ua.slice(0, 300), uh, ref, kw, path, String(cf.asn || ""), org, country, region, dwell, depth, moved, isKnown).run();
+      `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
+       VALUES (?,?,?,?,?,?,?,0,0,'test','\uD14C\uC2A4\uD2B8',?,?,?,?,0,?,?,?,?,0)`
+    ).bind(ip, fp, ua.slice(0, 300), uh, ref, kw, path, String(cf.asn || ""), org, country, region, depth, moved, isKnown, sid).run();
     return json({
       ok: true,
       action: "allow",
@@ -967,58 +1085,9 @@ async function onRequestPost10(context) {
       org
     });
   }
-  if (!isEntry) {
-    await env.DB.prepare(
-      `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known)
-       VALUES (?,?,?,?,?,?,?,0,0,'allow','\uB0B4\uBD80 \uC774\uB3D9',?,?,?,?,?,?,?,?)`
-    ).bind(
-      ip,
-      fp,
-      ua.slice(0, 300),
-      uh,
-      ref,
-      kw,
-      path,
-      String(cf.asn || ""),
-      org,
-      country,
-      region,
-      dwell,
-      depth,
-      moved,
-      isKnown
-    ).run();
-    return json({ ok: true, action: "allow", stage: 0, score: 0, internal: true, src, lastId: null });
-  }
-  const win = `datetime('now','+9 hours','-${WINDOW_MIN} minutes')`;
-  let ipHits = 1, fpHits = 1, fpIps = 1;
-  if (isAd) {
-    const ipAgg = await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM click_logs WHERE ip = ? AND is_naver = 1 AND created_at >= ${win}`
-    ).bind(ip).first();
-    fpHits = fp ? ((await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM click_logs WHERE fp = ? AND is_naver = 1 AND created_at >= ${win}`
-    ).bind(fp).first() || {}).n || 0) + 1 : 1;
-    fpIps = fp ? ((await env.DB.prepare(
-      `SELECT COUNT(DISTINCT ip) AS n FROM click_logs WHERE fp = ? AND is_naver = 1 AND created_at >= ${win}`
-    ).bind(fp).first() || {}).n || 0) + 1 : 1;
-    ipHits = ((ipAgg || {}).n || 0) + 1;
-  }
-  const ev = evaluate({ ipHits, fpHits, fpIps, ua, org, isAd, dwell, moved, depth, isKnown });
-  let action = ev.action, stage = ev.stage;
-  if (action === "block") {
-    const ok = await env.DB.prepare(
-      `SELECT 1 AS c FROM blocked_ips WHERE ip = ? AND mode = 'allow'`
-    ).bind(ip).first();
-    if (ok) {
-      action = "allow";
-      stage = 0;
-    }
-  }
-  const reason = isAd ? ev.reasons.join(" / ") : srcLabel(src);
   const ins = await env.DB.prepare(
-    `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
+     VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,0,?,?,?,?,0)`
   ).bind(
     ip,
     fp,
@@ -1027,20 +1096,94 @@ async function onRequestPost10(context) {
     ref,
     kw,
     path,
-    isNaver ? 1 : 0,
-    ev.score,
-    action,
-    reason,
+    isAd ? 1 : 0,
+    isEntry ? "allow" : "allow",
+    isEntry ? srcLabel(src) : "\uB0B4\uBD80 \uC774\uB3D9",
     String(cf.asn || ""),
     org,
     country,
     region,
-    dwell,
     depth,
     moved,
-    isKnown
+    isKnown,
+    sid
   ).run();
   const logId = ins && ins.meta ? ins.meta.last_row_id : null;
+  if (!isEntry) {
+    if (sid) {
+      await env.DB.prepare(
+        "UPDATE visits SET pages = pages + 1, last_at = ?, moved = MAX(COALESCE(moved,0), ?), depth = MAX(COALESCE(depth,1), ?) WHERE sid = ?"
+      ).bind(kst(0), moved, depth, sid).run().catch(() => null);
+    }
+    return json({ ok: true, action: "allow", stage: 0, score: 0, internal: true, src, id: logId });
+  }
+  let ipAd = 1, fpAd = 1, fpIps = 1, asnAd = 1;
+  if (isAd && asn) {
+    const e = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM visits WHERE asn = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-30 minutes')`
+    ).bind(asn).first();
+    asnAd = ((e || {}).n || 0) + 1;
+  }
+  if (isAd) {
+    if (fp) {
+      const a = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM visits WHERE fp = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-30 minutes')`
+      ).bind(fp).first();
+      fpAd = ((a || {}).n || 0) + 1;
+      const c = await env.DB.prepare(
+        `SELECT COUNT(DISTINCT ip) AS n FROM visits WHERE fp = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-24 hours')`
+      ).bind(fp).first();
+      fpIps = ((c || {}).n || 0) + 1;
+    }
+    const d = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM visits WHERE ip = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-30 minutes')`
+    ).bind(ip).first();
+    ipAd = ((d || {}).n || 0) + 1;
+  }
+  const ev = judgeSession({
+    isAd,
+    ipAd,
+    fpAd,
+    fpIps,
+    asnAd,
+    totalSec: Math.round(actMs / 1e3),
+    pages: 1,
+    moved: moved === 1,
+    bot: BOT_UA.test(ua),
+    hosting: isHosting(org),
+    carrier: isCarrier(org),
+    converted: false
+  });
+  if (sid) {
+    await env.DB.prepare(
+      `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, score, verdict, reasons)
+       VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT(sid) DO UPDATE SET last_at = excluded.last_at, pages = pages + 1,
+         moved = MAX(COALESCE(visits.moved,0), excluded.moved), score = excluded.score,
+         verdict = excluded.verdict, reasons = excluded.reasons`
+    ).bind(
+      sid,
+      fp,
+      ip,
+      src,
+      isAd ? 1 : 0,
+      kst(0),
+      kst(0),
+      actMs,
+      moved,
+      depth,
+      asn,
+      region,
+      org,
+      country,
+      ua.slice(0, 200),
+      ev.score,
+      ev.verdict,
+      ev.reasons.join(" / ")
+    ).run().catch(() => null);
+  }
+  let action = ev.verdict === "block" ? "block" : ev.verdict === "warn" ? "warn" : "allow";
+  let stage = ev.verdict === "block" ? 3 : ev.verdict === "warn" ? 2 : ev.verdict === "watch" ? 1 : 0;
   let blockedUntil = null;
   if (action === "block" && isAd) {
     const hours = ev.score >= STAGE.block + 60 ? 24 : 4;
@@ -1053,13 +1196,13 @@ async function onRequestPost10(context) {
        ON CONFLICT(ip) DO UPDATE SET reason=excluded.reason, score=excluded.score,
          hit_count=COALESCE(blocked_ips.hit_count,0)+1, blocked_until=excluded.blocked_until
        WHERE blocked_ips.manual = 0`
-    ).bind(ip, reason || "\uBC18\uBCF5 \uC811\uC18D", ev.score, ipHits, blockedUntil, fp).run();
+    ).bind(ip, ev.reasons.join(" / ") || "\uBC18\uBCF5 \uC811\uC18D", ev.score, ipAd, blockedUntil, fp).run();
     if (isNew) {
       waitUntil(notifyBlock(env, {
         ip,
         score: ev.score,
-        hits: ipHits,
-        reason: reason || "\uBC18\uBCF5 \uC811\uC18D",
+        hits: ipAd,
+        reason: ev.reasons.join(" / ") || "\uBC18\uBCF5 \uC811\uC18D",
         region,
         org,
         country,
@@ -1075,15 +1218,13 @@ async function onRequestPost10(context) {
     action,
     stage,
     score: ev.score,
-    hits: ipHits,
-    reason,
+    hits: ipAd,
+    verdict: ev.verdict,
+    reason: ev.reasons.join(" / "),
     blockedUntil,
     region,
     org,
-    fpDetected: fpHits > 1,
-    fpIps,
     src,
-    testMode,
     id: logId
   });
 }
@@ -1102,7 +1243,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-_b9zg3g8/.wrangler/tmp/pages-bjAQpI/functionsRoutes-0.37017674184984606.mjs
+// ../../../../../../tmp/lg-worker-llmd557x/.wrangler/tmp/pages-lxUVGj/functionsRoutes-0.4924634295303709.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",
