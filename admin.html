@@ -64,87 +64,44 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
 @media(max-width:760px){.wrap{padding:18px 12px 70px}.stat .v{font-size:19px}}
 
 
-/* ══════ KT 관리자 — 전용 테마 ══════ */
-body.kt{background:#f3f3f4;--kt:#f4514a;--kt-d:#d93a33;--ink2:#191919}
-body.kt .wrap{display:none}
-body.kt .login{max-width:380px;margin:14vh auto 0;border-radius:4px;border:1px solid #e2e2e4;box-shadow:none;padding:34px 30px}
-body.kt .login h1{font-size:20px;letter-spacing:-.03em}
-body.kt .login h1::before{content:"kt";display:inline-block;background:var(--kt);color:#fff;font-weight:900;font-size:14px;letter-spacing:-.06em;padding:3px 8px;border-radius:3px;margin-right:9px;vertical-align:2px}
+/* ══════ 공통 레이아웃 — 좌측 사이드바 + 상단 타이틀 (LG·KT 동일 구조) ══════ */
 .shell{display:none;min-height:100vh}
-
-/* 사이드바 */
-.side{width:250px;flex:0 0 250px;background:#fff;border-right:1px solid #e4e4e6;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.brand{background:#191919;color:#fff;padding:20px 20px 18px;display:flex;align-items:center;gap:11px}
-.brand .mark{background:var(--kt);color:#fff;font-weight:900;font-size:19px;letter-spacing:-.08em;line-height:1;padding:7px 9px 8px;border-radius:3px}
-.brand b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.02em}
-.brand i{display:block;font-style:normal;font-size:11px;color:#9b9b9e;font-weight:700;margin-top:3px;letter-spacing:.02em}
-.side nav{padding:12px 0;flex:1;overflow:auto}
-.side .tab{display:block;width:100%;border:0;background:transparent;text-align:left;padding:13px 20px;font-size:13.5px;font-weight:700;color:#6b6b70;border-left:3px solid transparent;border-radius:0;letter-spacing:-.02em}
-.side .tab em{font-style:normal;font-weight:900;font-size:10.5px;color:#c3c3c6;margin-right:9px;letter-spacing:.06em}
-.side .tab:hover{background:#fafafa;color:#191919}
-.side .tab.is-on{background:#f6f6f7;color:var(--kt);border-left-color:var(--kt);font-weight:900}
-.side .tab.is-on em{color:var(--kt)}
-.side-foot{padding:14px 20px 18px;border-top:1px solid #ededee;font-size:10.5px;color:#a8a8ac;font-weight:700;line-height:1.7}
-
-/* 본문 */
+.shell.is-on{display:flex}
+.side{width:238px;flex:0 0 238px;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{padding:22px 20px 20px;display:flex;align-items:center;gap:11px;color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+.brand .mark{font-weight:900;font-size:17px;letter-spacing:-.06em;line-height:1;padding:8px 9px;border-radius:7px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.32)}
+.brand b{display:block;font-size:13px;font-weight:800;letter-spacing:-.02em}
+.brand i{display:block;font-style:normal;font-size:10px;color:rgba(255,255,255,.66);font-weight:700;margin-top:4px;letter-spacing:.08em}
+.side nav{padding:10px 0;flex:1;overflow:auto}
+.side .tab{display:block;width:100%;border:0;background:transparent;text-align:left;padding:13px 20px;font-size:13.5px;font-weight:700;color:#6b7080;border-left:3px solid transparent;border-radius:0;letter-spacing:-.02em}
+.side .tab em{font-style:normal;font-weight:900;font-size:10.5px;color:#c3c4ce;margin-right:9px;letter-spacing:.06em}
+.side .tab:hover{background:#f7f7fc;color:var(--ink)}
+.side .tab.is-on{background:var(--soft);color:var(--brand);border-left-color:var(--brand);font-weight:900}
+.side .tab.is-on em{color:var(--brand)}
+.side-foot{padding:14px 20px 18px;border-top:1px solid var(--line);font-size:10.5px;color:#a8a8b4;font-weight:700;line-height:1.7}
 .main{flex:1;min-width:0;padding:0 0 70px}
-.topbar{background:#fff;border-bottom:1px solid #e4e4e6;padding:22px 34px 20px;display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.topbar{background:#fff;border-bottom:1px solid var(--line);padding:22px 32px 20px;display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .topbar h1{font-size:21px;font-weight:900;letter-spacing:-.045em}
-.topbar h1::after{content:"";display:block;width:26px;height:3px;background:var(--kt);margin-top:9px;border-radius:2px}
-.topbar .sub{font-size:12px;color:#8e8e93;font-weight:700;margin:0 0 4px}
-.topbar .chip{font-size:10.5px;font-weight:900;color:#fff;background:#191919;padding:6px 10px;border-radius:3px;letter-spacing:.02em}
-.main > section{padding:22px 34px 0;margin-top:0!important}
-
-/* 카드·표 */
-body.kt .card{border-radius:4px;border:1px solid #e4e4e6;box-shadow:none;padding:20px}
-body.kt .cards{gap:8px;grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
-body.kt .stat{border-radius:4px;border:1px solid #e4e4e6;padding:15px 16px 14px;position:relative;overflow:hidden}
-body.kt .stat::before{content:"";position:absolute;left:0;top:0;width:3px;height:100%;background:var(--kt)}
-body.kt .stat .l{font-size:10.5px;letter-spacing:.03em;color:#8e8e93;font-weight:900}
-body.kt .stat .v{font-size:24px;font-weight:900;letter-spacing:-.05em;margin-top:6px;color:#191919}
-body.kt .stat .h{font-size:10.5px;color:#a8a8ac;font-weight:700;margin-top:3px}
-body.kt .tw{border-radius:4px;border:1px solid #e4e4e6}
-body.kt th{background:#fff;border-bottom:2px solid #191919;color:#191919;font-size:11px;font-weight:900;letter-spacing:.02em;padding:11px 9px}
-body.kt td{border-bottom:1px solid #f0f0f1;padding:11px 9px}
-body.kt tr:hover td{background:#fbfbfb}
-body.kt .badge{border-radius:3px;font-size:10.5px;font-weight:900}
-body.kt .b-ad{background:#fdeceb;color:var(--kt-d)}
-body.kt .b-ok{background:#eef7f0;color:#1f8a4c}
-body.kt .b-watch{background:#fff6e5;color:#b87400}
-body.kt .b-warn{background:var(--kt);color:#fff}
-body.kt .btn{border-radius:3px;font-size:13px;font-weight:900}
-body.kt .btn-red{background:var(--kt)}
-body.kt .btn-red:hover{background:var(--kt-d)}
-body.kt .btn-line{border-color:#d8d8db}
-body.kt .pager button{border-radius:3px}
-body.kt .pager button.is-on{background:#191919;border-color:#191919;color:#fff}
-body.kt .toolbar select,body.kt .toolbar input{height:40px;border-radius:3px;border-color:#dcdcdf;font-size:12.5px}
-body.kt .hint{font-size:11.5px;color:#9a9aa0}
-body.kt .detail .body{border-left:3px solid var(--kt)}
-body.kt .tl{border-left-color:#e0e0e2}
-body.kt .tl li::before{background:var(--kt)}
-body.kt textarea{border-radius:3px}
-body.kt .post{border-left:3px solid transparent}
-body.kt .post:hover{border-left-color:var(--kt)}
-
+.topbar h1::after{content:"";display:block;width:26px;height:3px;background:var(--brand);margin-top:9px;border-radius:2px}
+.topbar .sub{margin:0}
+.topbar .chip{font-size:10.5px;font-weight:900;color:#fff;background:var(--brand);padding:6px 11px;border-radius:999px;letter-spacing:.02em}
+.main > section{padding:22px 32px 0;margin-top:0!important}
 @media(max-width:900px){
-  .shell{display:block}
-  .side{width:auto;flex:none;position:static;height:auto;border-right:0;border-bottom:1px solid #e4e4e6}
+  .shell.is-on{display:block}
+  .side{width:auto;flex:none;position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}
   .brand{padding:14px 16px}
-  .side nav{display:flex;overflow-x:auto;padding:0;gap:0}
+  .side nav{display:flex;overflow-x:auto;padding:0}
   .side .tab{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:12px 14px;font-size:12.5px}
   .side .tab em{display:none}
-  .side .tab.is-on{border-left:0;border-bottom-color:var(--kt);background:#fff}
+  .side .tab.is-on{border-left:0;border-bottom-color:var(--brand);background:#fff}
   .side-foot{display:none}
   .topbar{padding:16px 16px 14px}
   .topbar h1{font-size:18px}
   .main > section{padding:16px 16px 0}
 }
-
 </style>
 </head>
-<body class="">
-<div class="wrap">
+<body class="lg">
 <div class="login" id="loginBox">
   <h1>관리자</h1>
   <p class="sub">LG U+ 기업가입센터 상담·부정클릭 관리</p>
@@ -152,17 +109,24 @@ body.kt .post:hover{border-left-color:var(--kt)}
   <button class="btn btn-red" id="admLogin" style="width:100%;margin-top:14px" type="button">로그인</button>
   <p id="admErr" style="color:#e03c35;font-size:13px;margin-top:10px;font-weight:700"></p>
 </div>
-<div id="listBox" style="display:none">
-  <h1>관리자</h1>
-  <p class="sub">LG U+ 기업가입센터 · 상담 접수 및 부정클릭 관리</p>
-<div class="tabs">
-    <button class="tab is-on" data-tab="post" data-label="상담 문의">상담 문의</button>
-    <button class="tab" data-tab="sum" data-label="요약">요약</button>
-    <button class="tab" data-tab="visit" data-label="방문 목록">방문 목록</button>
-    <button class="tab" data-tab="sus" data-label="의심 IP">의심 IP</button>
-    <button class="tab" data-tab="block" data-label="차단 관리">차단 관리</button>
-    <button class="tab" data-tab="raw" data-label="원본 로그">원본 로그</button>
-  </div>
+<div class="shell" id="listBox">
+    <aside class="side">
+      <div class="brand"><span class="mark">U+</span><div><b>LG U+ 기업가입센터</b><i>ADMIN CONSOLE</i></div></div>
+      <nav>
+        <button class="tab is-on" data-tab="post" data-label="상담 문의"><em>01</em>상담 문의</button>
+        <button class="tab" data-tab="sum" data-label="요약"><em>02</em>요약</button>
+        <button class="tab" data-tab="visit" data-label="방문 목록"><em>03</em>방문 목록</button>
+        <button class="tab" data-tab="sus" data-label="의심 IP"><em>04</em>의심 IP</button>
+        <button class="tab" data-tab="block" data-label="차단 관리"><em>05</em>차단 관리</button>
+        <button class="tab" data-tab="raw" data-label="원본 로그"><em>06</em>원본 로그</button>
+      </nav>
+      <div class="side-foot">LG U+ 기업가입센터<br>상담·부정클릭 관리 콘솔</div>
+    </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><h1 id="pageTitle">상담 문의</h1></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="chip">U+ BIZ</span><span class="sub" style="margin:0">LG U+ 기업가입센터</span></div>
+    </header>
   <section id="tabPost" style="margin-top:18px">
     <div id="admList"></div>
     <div class="pager" id="admPager"></div>
@@ -196,8 +160,8 @@ body.kt .post:hover{border-left-color:var(--kt)}
     </div>
     <div class="tw">
       <table><thead><tr>
-        <th>시작</th><th>유입</th><th>IP</th><th>회선</th><th>기기지문</th><th>페이지</th><th>총 체류</th><th>판정</th><th>점수</th>
-      </tr></thead><tbody id="vBody"><tr><td colspan="9" style="padding:22px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
+        <th>시작</th><th>유입</th><th>IP</th><th>회선</th><th>위치</th><th>기기지문</th><th>페이지</th><th>총 체류</th><th>판정</th><th>점수</th>
+      </tr></thead><tbody id="vBody"><tr><td colspan="10" style="padding:22px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
     </div>
     <div class="pager" id="vPager"></div>
     <p class="hint">한 줄이 방문 1회입니다. 페이지를 여러 개 봐도 방문은 1회로 집계됩니다.</p>
@@ -211,7 +175,7 @@ body.kt .post:hover{border-left-color:var(--kt)}
     <div class="tw">
       <table><thead><tr>
         <th>IP</th><th>위험점수</th><th>방문</th><th>광고</th><th>기기</th><th>총 체류</th><th>지역</th><th>최근</th><th>조치</th>
-      </tr></thead><tbody id="sBody"><tr><td colspan="9" style="padding:22px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
+      </tr></thead><tbody id="sBody"><tr><td colspan="10" style="padding:22px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
     </div>
     <div class="pager" id="sPager"></div>
     <div class="tw" style="margin-top:22px">
@@ -253,7 +217,7 @@ body.kt .post:hover{border-left-color:var(--kt)}
     <p class="hint">페이지뷰 원본입니다. 방문 집계에는 쓰이지 않고, 문제 세션을 들여다볼 때만 사용합니다.</p>
   </section>
 </div>
-</div>
+  </main>
 </div>
 <div class="detail" id="detail">
   <div class="veil" data-close-detail></div>
@@ -306,7 +270,7 @@ body.kt .post:hover{border-left-color:var(--kt)}
   function loadPosts(pg){
     fetch(base+"/admin",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:token,page:pg||1,per:10})})
       .then(function(r){return r.json();}).then(function(j){
-        if(!j.ok){ sessionStorage.removeItem("adm"); $("listBox").style.display="none"; $("loginBox").style.display=""; $("admErr").textContent="비밀번호가 올바르지 않습니다."; return; }
+        if(!j.ok){ sessionStorage.removeItem("adm"); var _sb=$("listBox"); if(_sb){_sb.style.display="flex"; _sb.classList.add("is-on");} $("loginBox").style.display=""; $("admErr").textContent="비밀번호가 올바르지 않습니다."; return; }
         $("loginBox").style.display="none";
         $("listBox").style.display = document.body.classList.contains("kt") ? "flex" : "";
         ST.post={page:j.page||1,pages:j.pages||1,total:j.total||0};
@@ -412,15 +376,17 @@ body.kt .post:hover{border-left-color:var(--kt)}
         $("vBody").innerHTML = l.length ? l.map(function(x){
           return '<tr data-sid="'+esc(x.sid)+'" style="cursor:pointer">'
             +'<td style="color:#8b90a0;font-size:12px;white-space:nowrap">'+esc(dt(x.started_at))+'</td>'
-            +'<td>'+(x.is_ad?'<span class="badge b-ad">광고</span>':'<span class="badge">직접</span>')+'</td>'
+            +'<td>'+(x.is_ad?'<span class="badge b-ad">광고</span>':'<span class="badge">직접</span>')
+              +(x.kw?'<div style="font-size:11px;color:#8b90a0;font-weight:700;margin-top:4px;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.kw)+'">“'+esc(x.kw)+'”</div>':'')+'</td>'
             +'<td class="mono">'+esc(x.ip)+'</td>'
             +'<td style="font-size:11.5px;color:#6b7080;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.org||"")+'">'+esc(x.org||"-")+'</td>'
+            +'<td style="font-size:11.5px;color:#6b7080;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.region||"")+'">'+esc(x.region||"-")+'</td>'
             +'<td class="mono" style="color:#9aa0b0">'+esc(String(x.fp||"").slice(0,10)||"-")+'</td>'
             +'<td style="text-align:center;font-weight:800">'+(x.pages||1)+'</td>'
             +'<td style="font-weight:800;color:'+((x.total_ms||0)<3000?"#e03c35":"#3b3e47")+'">'+dur(x.total_ms)+'</td>'
             +'<td>'+verdictBadge(x.verdict)+'</td>'
             +'<td style="text-align:center;color:#8b90a0;font-weight:700">'+(x.score||0)+'</td></tr>';
-        }).join("") : '<tr><td colspan="9" style="padding:22px;text-align:center;color:#9aa0b0">기록이 없습니다.</td></tr>';
+        }).join("") : '<tr><td colspan="10" style="padding:22px;text-align:center;color:#9aa0b0">기록이 없습니다.</td></tr>';
         pager($("vPager"),ST.visit,loadVisits);
       });
   }
@@ -440,6 +406,8 @@ body.kt .post:hover{border-left-color:var(--kt)}
         + '<div><b>판정</b> '+verdictBadge(v.verdict)+'</div>'
         + '<div><b>총 체류</b> '+dur(v.total_ms)+'</div>'
         + '<div><b>페이지</b> '+(v.pages||1)+'개</div>'
+        + '<div><b>위치</b> '+esc(v.region||"-")+'</div>'
+        + '<div><b>검색어</b> '+(v.kw?'“'+esc(v.kw)+'”':'-')+'</div>'
         + '</div>'
         + (v.reasons?'<p class="hint">사유 · '+esc(v.reasons)+'</p>':'')
         + '</div>'
@@ -551,7 +519,7 @@ body.kt .post:hover{border-left-color:var(--kt)}
             +'<td style="font-size:11.5px;color:#6b7080">'+esc(x.keyword||"-")+'</td>'
             +'<td style="font-size:11.5px;color:#8b90a0">'+(x.act_ms?Math.round(x.act_ms/1000)+"초":(x.dwell!=null?x.dwell+"초":"-"))+'</td>'
             +'<td style="text-align:center;color:#8b90a0">'+(x.score||0)+'</td></tr>';
-        }).join("") : '<tr><td colspan="9" style="padding:22px;text-align:center;color:#9aa0b0">기록이 없습니다.</td></tr>';
+        }).join("") : '<tr><td colspan="10" style="padding:22px;text-align:center;color:#9aa0b0">기록이 없습니다.</td></tr>';
         pager($("rPager"),ST.raw,loadRaw);
       });
   }

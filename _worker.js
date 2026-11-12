@@ -587,7 +587,7 @@ async function ensureSchema(env) {
       sid TEXT PRIMARY KEY, fp TEXT, ip TEXT, src TEXT, is_ad INTEGER NOT NULL DEFAULT 0,
       started_at TEXT NOT NULL, last_at TEXT, total_ms INTEGER NOT NULL DEFAULT 0,
       pages INTEGER NOT NULL DEFAULT 1, moved INTEGER NOT NULL DEFAULT 0,
-      depth INTEGER NOT NULL DEFAULT 1, asn TEXT, region TEXT, org TEXT, country TEXT, ua TEXT,
+      depth INTEGER NOT NULL DEFAULT 1, asn TEXT, region TEXT, org TEXT, country TEXT, ua TEXT, kw TEXT,
       score INTEGER NOT NULL DEFAULT 0, verdict TEXT NOT NULL DEFAULT 'normal', reasons TEXT)`).run();
     await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_time ON visits (started_at DESC)").run();
     await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ip ON visits (ip, started_at DESC)").run();
@@ -603,6 +603,10 @@ async function ensureSchema(env) {
     }
     try {
       await env.DB.prepare("ALTER TABLE visits ADD COLUMN asn TEXT").run();
+    } catch (e) {
+    }
+    try {
+      await env.DB.prepare("ALTER TABLE visits ADD COLUMN kw TEXT").run();
     } catch (e) {
     }
     _schemaReady = true;
@@ -755,8 +759,8 @@ async function onRequestPost9({ request, env }) {
       binds.push(verdict);
     }
     if (q) {
-      where += " AND (ip LIKE ? OR fp LIKE ?)";
-      binds.push("%" + q + "%", "%" + q + "%");
+      where += " AND (ip LIKE ? OR fp LIKE ? OR org LIKE ? OR kw LIKE ?)";
+      binds.push("%" + q + "%", "%" + q + "%", "%" + q + "%", "%" + q + "%");
     }
     const total = await env.DB.prepare("SELECT COUNT(*) AS c FROM visits " + where).bind(...binds).first("c");
     const rows = await env.DB.prepare(
@@ -831,7 +835,7 @@ async function onRequestPost9({ request, env }) {
     const rows = await env.DB.prepare(
       `WITH base AS (
          SELECT id, ip, COALESCE(NULLIF(fp,''), 'ip:' || ip) AS k, is_naver, created_at,
-                COALESCE(dwell, 0) AS dwell, COALESCE(moved, 0) AS moved, asn, region, org, country, ua,
+                COALESCE(dwell, 0) AS dwell, COALESCE(moved, 0) AS moved, asn, region, org, country, ua, keyword,
                 julianday(created_at) AS jd
            FROM click_logs
           WHERE action <> 'test' AND created_at >= ? AND created_at < ?
@@ -841,7 +845,7 @@ async function onRequestPost9({ request, env }) {
        SELECT k, seg, MIN(id) AS first_id, MAX(id) AS last_id, MAX(ip) AS ip, MAX(is_naver) AS is_ad,
               COUNT(*) AS pages, SUM(dwell) AS sec, MAX(moved) AS moved,
               MIN(created_at) AS started_at, MAX(created_at) AS last_at,
-              MAX(asn) AS asn, MAX(region) AS region, MAX(org) AS org, MAX(country) AS country, MAX(ua) AS ua
+              MAX(asn) AS asn, MAX(region) AS region, MAX(org) AS org, MAX(country) AS country, MAX(ua) AS ua, MAX(keyword) AS kw
          FROM s GROUP BY k, seg ORDER BY MIN(created_at) ASC`
     ).bind(from, to).all();
     const list = rows.results || [];
@@ -904,8 +908,8 @@ async function onRequestPost9({ request, env }) {
       else if (score >= 55) verdict = "watch";
       const sid = ("b" + r.k + ":" + r.seg + ":" + r.started_at).slice(0, 48);
       stmts.push(env.DB.prepare(
-        `INSERT OR REPLACE INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, score, verdict, reasons)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        `INSERT OR REPLACE INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
       ).bind(
         sid,
         r.k && !String(r.k).startsWith("ip:") ? r.k : "",
@@ -923,6 +927,7 @@ async function onRequestPost9({ request, env }) {
         r.org || "",
         r.country || "",
         String(r.ua || "").slice(0, 200),
+        String(r.kw || ""),
         score,
         verdict,
         isAd ? "\uC7AC\uC9D1\uACC4" : ""
@@ -1071,7 +1076,7 @@ async function onRequestPost10(context) {
     });
   }
   const st = await blockState(env, ip);
-  if (st.mode === "allow") return json({ ok: true, action: "allow", score: 0, whitelisted: true });
+  const whitelisted = st.mode === "allow";
   if (st.mode === "block") {
     return json({
       ok: true,
@@ -1156,11 +1161,12 @@ async function onRequestPost10(context) {
   });
   if (sid) {
     await env.DB.prepare(
-      `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, score, verdict, reasons)
-       VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?)
+      `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON CONFLICT(sid) DO UPDATE SET last_at = excluded.last_at, pages = pages + 1,
          moved = MAX(COALESCE(visits.moved,0), excluded.moved), score = excluded.score,
-         verdict = excluded.verdict, reasons = excluded.reasons`
+         verdict = excluded.verdict, reasons = excluded.reasons,
+         kw = CASE WHEN visits.kw IS NULL OR visits.kw = '' THEN excluded.kw ELSE visits.kw END`
     ).bind(
       sid,
       fp,
@@ -1177,12 +1183,13 @@ async function onRequestPost10(context) {
       org,
       country,
       ua.slice(0, 200),
+      kw,
       ev.score,
       ev.verdict,
       ev.reasons.join(" / ")
     ).run().catch(() => null);
   }
-  let action = ev.verdict === "block" ? "block" : ev.verdict === "warn" ? "warn" : "allow";
+  let action = whitelisted ? "allow" : ev.verdict === "block" ? "block" : ev.verdict === "warn" ? "warn" : "allow";
   let stage = ev.verdict === "block" ? 3 : ev.verdict === "warn" ? 2 : ev.verdict === "watch" ? 1 : 0;
   let blockedUntil = null;
   if (action === "block" && isAd) {
@@ -1243,7 +1250,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-olzgz6yf/.wrangler/tmp/pages-15y2Hj/functionsRoutes-0.6072846152889528.mjs
+// ../../../../../../tmp/lg-worker-js9ouu9p/.wrangler/tmp/pages-5YKW3t/functionsRoutes-0.6087200272921227.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",
