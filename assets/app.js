@@ -87,7 +87,7 @@
   function postConsult(form){
     var g=function(n){ var el=form.querySelector('[name="'+n+'"]'); return el?el.value:''; };
     var digits=function(v){ return String(v||'').replace(/\D/g,''); };
-    var product=g('product')||'기타 문의';
+    var product=(g('product')||'').trim()||'기타 문의';
     var msg=(g('message')||'').trim();
     var title=(g('title')||'').trim() || ('[상담신청] ' + product);
     var content = msg || ('상담 신청 상품: ' + product);
