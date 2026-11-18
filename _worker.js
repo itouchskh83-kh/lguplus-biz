@@ -580,6 +580,28 @@ function judgeSession(c) {
 }
 __name(judgeSession, "judgeSession");
 var _schemaReady = false;
+async function ensureCol(env, table, col, type) {
+  try {
+    const info = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
+    const has = (info.results || []).some((r) => String(r.name).toLowerCase() === col.toLowerCase());
+    if (!has) await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`).run();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+__name(ensureCol, "ensureCol");
+async function repairSchema(env) {
+  if (!env || !env.DB) return false;
+  await ensureCol(env, "click_logs", "sid", "TEXT");
+  await ensureCol(env, "click_logs", "act_ms", "INTEGER");
+  await ensureCol(env, "visits", "asn", "TEXT");
+  await ensureCol(env, "visits", "kw", "TEXT");
+  await ensureCol(env, "visits", "ended_at", "TEXT");
+  _schemaReady = true;
+  return true;
+}
+__name(repairSchema, "repairSchema");
 async function ensureSchema(env) {
   if (_schemaReady || !env || !env.DB) return;
   try {
@@ -587,29 +609,13 @@ async function ensureSchema(env) {
       sid TEXT PRIMARY KEY, fp TEXT, ip TEXT, src TEXT, is_ad INTEGER NOT NULL DEFAULT 0,
       started_at TEXT NOT NULL, last_at TEXT, total_ms INTEGER NOT NULL DEFAULT 0,
       pages INTEGER NOT NULL DEFAULT 1, moved INTEGER NOT NULL DEFAULT 0,
-      depth INTEGER NOT NULL DEFAULT 1, asn TEXT, region TEXT, org TEXT, country TEXT, ua TEXT, kw TEXT,
-      score INTEGER NOT NULL DEFAULT 0, verdict TEXT NOT NULL DEFAULT 'normal', reasons TEXT)`).run();
-    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_time ON visits (started_at DESC)").run();
-    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ip ON visits (ip, started_at DESC)").run();
-    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_fp ON visits (fp, started_at DESC)").run();
-    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ad ON visits (is_ad, started_at DESC)").run();
-    try {
-      await env.DB.prepare("ALTER TABLE click_logs ADD COLUMN sid TEXT").run();
-    } catch (e) {
-    }
-    try {
-      await env.DB.prepare("ALTER TABLE click_logs ADD COLUMN act_ms INTEGER").run();
-    } catch (e) {
-    }
-    try {
-      await env.DB.prepare("ALTER TABLE visits ADD COLUMN asn TEXT").run();
-    } catch (e) {
-    }
-    try {
-      await env.DB.prepare("ALTER TABLE visits ADD COLUMN kw TEXT").run();
-    } catch (e) {
-    }
-    _schemaReady = true;
+      depth INTEGER NOT NULL DEFAULT 1, asn TEXT, region TEXT, org TEXT, country TEXT, ua TEXT, kw TEXT, ended_at TEXT,
+      score INTEGER NOT NULL DEFAULT 0, verdict TEXT NOT NULL DEFAULT 'normal', reasons TEXT)`).run().catch(() => null);
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_time ON visits (started_at DESC)").run().catch(() => null);
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ip ON visits (ip, started_at DESC)").run().catch(() => null);
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_fp ON visits (fp, started_at DESC)").run().catch(() => null);
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_visits_ad ON visits (is_ad, started_at DESC)").run().catch(() => null);
+    await repairSchema(env);
   } catch (e) {
   }
 }
@@ -631,6 +637,38 @@ async function setSet(env, key, val) {
   }
 }
 __name(setSet, "setSet");
+var RULE = { d7: { warn: 2, block: 3 }, d30: { warn: 4, block: 5 } };
+function evalRules(ad7, ad30) {
+  const a7 = Number(ad7) || 0;
+  const a30 = Number(ad30) || 0;
+  const why = [];
+  let state = "normal";
+  if (a7 >= RULE.d7.block) {
+    state = "block";
+    why.push("7\uC77C \uAD11\uACE0 " + a7 + "\uD68C");
+  } else if (a30 >= RULE.d30.block) {
+    state = "block";
+    why.push("30\uC77C \uAD11\uACE0 " + a30 + "\uD68C");
+  } else if (a7 >= RULE.d7.warn) {
+    state = "warn";
+    why.push("7\uC77C \uAD11\uACE0 " + a7 + "\uD68C");
+  } else if (a30 >= RULE.d30.warn) {
+    state = "warn";
+    why.push("30\uC77C \uAD11\uACE0 " + a30 + "\uD68C");
+  } else if (a7 >= 1 || a30 >= 1) {
+    state = "observe";
+  }
+  return { state, ad7: a7, ad30: a30, why, permanent: state === "block" };
+}
+__name(evalRules, "evalRules");
+var RANK = { normal: 0, observe: 1, watch: 1, warn: 2, block: 3 };
+function strongerVerdict(scoreVerdict, ruleState) {
+  const a = RANK[scoreVerdict] || 0;
+  const b = RANK[ruleState] || 0;
+  if (b > a) return ruleState === "observe" ? "watch" : ruleState;
+  return scoreVerdict;
+}
+__name(strongerVerdict, "strongerVerdict");
 
 // api/posts.js
 async function onRequestGet({ request, env }) {
@@ -730,22 +768,40 @@ function csvCell(v) {
 }
 __name(csvCell, "csvCell");
 async function rxStatus(env) {
-  const wm = await getSet(env, "reindex_from", "");
-  const mnRow = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first();
-  const cutRow = await env.DB.prepare("SELECT MIN(started_at) AS m FROM visits WHERE sid NOT LIKE 'b%'").first();
   const now2 = new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
-  const mn = (mnRow || {}).m;
-  const end = (cutRow || {}).m || now2;
-  if (!mn) return { need: false, done: true, from: "", end, msg: "\uC7AC\uC9D1\uACC4\uD560 \uC6D0\uBCF8 \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." };
-  const from = wm || mn;
-  return { need: from < end, done: from >= end, from, end, wm };
+  const today = now2.slice(0, 10);
+  const err = await getSet(env, "last_db_err", "");
+  const gap = await env.DB.prepare(
+    `SELECT d.day AS day, d.c AS logs FROM (
+       SELECT substr(created_at,1,10) AS day, COUNT(*) AS c
+         FROM click_logs WHERE action <> 'test' AND created_at < ? GROUP BY day
+     ) d
+     LEFT JOIN (
+       SELECT substr(started_at,1,10) AS day, COUNT(*) AS c FROM visits GROUP BY day
+     ) v ON v.day = d.day
+     WHERE COALESCE(v.c,0) = 0
+     ORDER BY d.day DESC LIMIT 1`
+  ).bind(now2).first();
+  const wm = await getSet(env, "reindex_from", "");
+  if (!gap || !gap.day) {
+    return {
+      need: false,
+      done: true,
+      from: "",
+      end: now2,
+      wm,
+      err,
+      msg: "\uC790\uB3D9 \uC7AC\uC9D1\uACC4 \uC644\uB8CC \xB7 \uBAA8\uB4E0 \uB0A0\uC9DC\uAC00 \uBC18\uC601\uB418\uC5B4 \uC788\uC2B5\uB2C8\uB2E4"
+    };
+  }
+  return { need: true, done: false, from: gap.day, end: now2, wm, err, logs: gap.logs };
 }
 __name(rxStatus, "rxStatus");
 async function reindexBatch(env, fromIn) {
   let from = String(fromIn || "").trim();
   if (!from) {
     const mn = await env.DB.prepare("SELECT MIN(created_at) AS m FROM click_logs WHERE action <> 'test'").first("m");
-    if (!mn) return json({ ok: true, done: true, inserted: 0, msg: "\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." });
+    if (!mn) return { ok: true, done: true, inserted: 0, msg: "\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." };
     from = mn;
   }
   const toRow = await env.DB.prepare("SELECT datetime(?, '+10 days') AS t").bind(from).first();
@@ -856,7 +912,7 @@ async function reindexBatch(env, fromIn) {
   const nowK = new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 19).replace("T", " ");
   const done = !list.length || to > nowK;
   await setSet(env, "reindex_from", done ? nowK : to);
-  return json({ ok: true, done, from, to, inserted: list.length, next: done ? null : to });
+  return { ok: true, done, from, to, inserted: list.length, next: done ? null : to };
 }
 __name(reindexBatch, "reindexBatch");
 async function onRequestPost9(context) {
@@ -920,9 +976,27 @@ async function onRequestPost9(context) {
     const rows = await env.DB.prepare(
       "SELECT * FROM visits " + where + " ORDER BY started_at DESC LIMIT ? OFFSET ?"
     ).bind(...binds, per, (page - 1) * per).all();
+    const vips = Array.from(new Set((rows.results || []).map((r) => r.ip).filter(Boolean)));
+    const cmap = {};
+    if (vips.length) {
+      const ph = vips.map(() => "?").join(",");
+      const c = await env.DB.prepare(
+        `SELECT ip, SUM(is_ad) AS ad, SUM(CASE WHEN is_ad = 0 THEN 1 ELSE 0 END) AS direct
+           FROM visits WHERE ip IN (${ph}) GROUP BY ip`
+      ).bind(...vips).all();
+      (c.results || []).forEach((r) => {
+        cmap[r.ip] = { ad: r.ad || 0, direct: r.direct || 0 };
+      });
+    }
+    const list = (rows.results || []).map((r) => Object.assign({}, r, {
+      cum_ad: (cmap[r.ip] || {}).ad || 0,
+      cum_direct: (cmap[r.ip] || {}).direct || 0,
+      ad7: 0,
+      ad30: 0
+    }));
     const rx = await rxStatus(env);
     if (rx.need) WA(reindexBatch(env).catch(() => null));
-    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [], rx });
+    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list, rx });
   }
   if (op === "detail") {
     const sid = String(b.sid || "");
@@ -935,20 +1009,72 @@ async function onRequestPost9(context) {
   }
   if (op === "suspicious") {
     const page = clampPage(b.page), per = clampPer(b.per);
-    const base = `FROM visits WHERE started_at >= ${win} AND (is_ad = 1 OR score >= 60)`;
-    const total = await env.DB.prepare("SELECT COUNT(DISTINCT ip) AS c " + base).first("c");
     const rows = await env.DB.prepare(
-      `SELECT ip, COUNT(*) AS sessions, SUM(is_ad) AS ad_sessions, MAX(score) AS top,
-              COUNT(DISTINCT fp) AS devices, SUM(total_ms) AS ms, MAX(region) AS region,
-              MAX(org) AS org, MAX(last_at) AS last, MAX(reasons) AS reason
-         ${base}
+      `SELECT ip, COUNT(*) AS sessions, SUM(is_ad) AS ad_sessions,
+              SUM(CASE WHEN is_ad = 1 AND started_at >= datetime('now','+9 hours','-7 days') THEN 1 ELSE 0 END) AS ad7,
+              SUM(CASE WHEN is_ad = 1 THEN 1 ELSE 0 END) AS ad30,
+              COUNT(DISTINCT fp) AS devices, SUM(total_ms) AS ms,
+              MAX(region) AS region, MAX(org) AS org, MAX(score) AS top,
+              MAX(last_at) AS last, MAX(reasons) AS reason
+         FROM visits
+        WHERE started_at >= datetime('now','+9 hours','-30 days')
         GROUP BY ip
-        HAVING SUM(is_ad) >= 1 OR MAX(score) >= 60
-        ORDER BY top DESC, sessions DESC LIMIT ? OFFSET ?`
-    ).bind(per, (page - 1) * per).all();
+        HAVING SUM(is_ad) >= 1 OR MAX(score) >= 60`
+    ).all();
+    const all = rows.results || [];
+    const ips = Array.from(new Set(all.map((r) => r.ip).filter(Boolean)));
+    const cmap = {};
+    if (ips.length) {
+      const ph = ips.map(() => "?").join(",");
+      const c = await env.DB.prepare(
+        `SELECT ip, SUM(is_ad) AS ad, SUM(CASE WHEN is_ad = 0 THEN 1 ELSE 0 END) AS direct
+           FROM visits WHERE ip IN (${ph}) GROUP BY ip`
+      ).bind(...ips).all();
+      (c.results || []).forEach((r) => {
+        cmap[r.ip] = { ad: r.ad || 0, direct: r.direct || 0 };
+      });
+    }
+    const list = all.map((r) => {
+      const rr = evalRules(r.ad7, r.ad30);
+      return Object.assign({}, r, {
+        state: rr.state,
+        ad7: rr.ad7,
+        ad30: rr.ad30,
+        cum_ad: (cmap[r.ip] || {}).ad || 0,
+        cum_direct: (cmap[r.ip] || {}).direct || 0
+      });
+    }).filter((r) => r.state === "block" || r.state === "warn" || r.state === "observe" && (r.cum_ad || 0) >= 2).sort((a, b2) => (RANK[b2.state] || 0) - (RANK[a.state] || 0) || (b2.ad30 || 0) - (a.ad30 || 0) || String(b2.last || "").localeCompare(String(a.last || "")));
+    const total = list.length;
     const rx = await rxStatus(env);
-    if (rx.need) WA(reindexBatch(env).catch(() => null));
-    return json({ ok: true, page, per, total: total || 0, pages: Math.max(1, Math.ceil((total || 0) / per)), list: rows.results || [], rx });
+    return json({
+      ok: true,
+      page,
+      per,
+      total,
+      pages: Math.max(1, Math.ceil(total / per)),
+      list: list.slice((page - 1) * per, page * per),
+      rx
+    });
+  }
+  if (op === "devices") {
+    const rows = await env.DB.prepare(
+      `SELECT COALESCE(NULLIF(fp,''), 'ip:' || ip) AS dev,
+              COUNT(*) AS sessions, SUM(is_ad) AS ad_sessions,
+              SUM(CASE WHEN is_ad = 1 AND started_at >= datetime('now','+9 hours','-7 days') THEN 1 ELSE 0 END) AS ad7,
+              SUM(CASE WHEN is_ad = 1 THEN 1 ELSE 0 END) AS ad30,
+              COUNT(DISTINCT ip) AS ips, MAX(org) AS org, MAX(region) AS region,
+              MAX(score) AS top, MAX(last_at) AS last
+         FROM visits
+        WHERE started_at >= datetime('now','+9 hours','-30 days')
+        GROUP BY dev
+        HAVING SUM(is_ad) >= 2
+        ORDER BY ad30 DESC, ad7 DESC, ips DESC LIMIT 30`
+    ).all();
+    const list = (rows.results || []).map((r) => {
+      const rr = evalRules(r.ad7, r.ad30);
+      return Object.assign({}, r, { state: rr.state });
+    }).sort((a, b2) => (RANK[b2.state] || 0) - (RANK[a.state] || 0) || (b2.ad30 || 0) - (a.ad30 || 0));
+    return json({ ok: true, list });
   }
   if (op === "asn") {
     const rows = await env.DB.prepare(
@@ -1008,7 +1134,7 @@ async function onRequestPost9(context) {
     const ip = String(b.ip || "").trim();
     if (!ip) return json({ ok: false, error: "BAD_IP" }, 400);
     if (op === "unblock") {
-      await env.DB.prepare("DELETE FROM blocked_ips WHERE ip = ? AND manual = 1").bind(ip).run();
+      await env.DB.prepare("DELETE FROM blocked_ips WHERE ip = ?").bind(ip).run();
       return json({ ok: true });
     }
     const mode = op;
@@ -1060,9 +1186,25 @@ async function onRequestPost10(context) {
   const path = String(b.p || "/").slice(0, 200);
   const fp = String(b.f || "").slice(0, 40);
   let sid = String(b.s || "").slice(0, 48);
-  if (!sid) {
-    const bucket = Math.floor((Date.now() + 9 * 36e5) / (30 * 60 * 1e3));
-    sid = ("srv" + bucket.toString(36) + ":" + (fp || ip || "x")).slice(0, 48);
+  if (b.op !== "upd" && b.op !== "end" && b.op !== "hb") {
+    try {
+      const pv = await env.DB.prepare(
+        `SELECT sid, ended_at, last_at FROM visits
+          WHERE ip = ? AND (? = '' OR fp = ?)
+            AND last_at >= datetime('now','+9 hours','-12 hours')
+          ORDER BY last_at DESC LIMIT 1`
+      ).bind(ip, fp, fp).first();
+      if (pv && pv.sid) {
+        const nowMs = Date.now();
+        const ms = /* @__PURE__ */ __name((v) => v ? Date.parse(String(v).replace(" ", "T") + "+09:00") : 0, "ms");
+        const endMs = ms(pv.ended_at), lastMs = ms(pv.last_at);
+        const closed = endMs && nowMs - endMs > 1e4;
+        const stale = lastMs && nowMs - lastMs > 3 * 60 * 1e3;
+        if (!closed && !stale) sid = pv.sid;
+      }
+    } catch (e) {
+    }
+    if (!sid) sid = ("srv" + Date.now().toString(36) + (fp || ip || "x")).slice(0, 48);
   }
   const isKnown = b.n === 1 ? 1 : 0;
   const actMs = Math.max(0, Math.min(MAX_ACT, Number(b.a) || 0));
@@ -1070,6 +1212,14 @@ async function onRequestPost10(context) {
   const region = [cf.region, cf.city].filter(Boolean).join(" ") || String(cf.colo || "");
   const org = String(cf.asOrganization || "");
   const country = String(cf.country || "");
+  if (b.op === "end" && sid) {
+    await env.DB.prepare("UPDATE visits SET ended_at = ?, last_at = ? WHERE sid = ? AND ip = ?").bind(kst(0), kst(0), sid, ip).run().catch(() => null);
+    return json({ ok: true, ended: true });
+  }
+  if (b.op === "hb" && sid) {
+    await env.DB.prepare("UPDATE visits SET last_at = ? WHERE sid = ? AND ip = ?").bind(kst(0), sid, ip).run().catch(() => null);
+    return json({ ok: true, hb: true });
+  }
   if (b.op === "upd" && b.id) {
     try {
       const prev = await env.DB.prepare("SELECT act_ms, sid FROM click_logs WHERE id = ? AND ip = ?").bind(b.id, ip).first();
@@ -1195,6 +1345,29 @@ async function onRequestPost10(context) {
     ).bind(ip).first();
     ipAd = ((d || {}).n || 0) + 1;
   }
+  let ip7 = 0, ip30 = 0, fp7 = 0, fp30 = 0;
+  if (isAd) {
+    try {
+      const r1 = await env.DB.prepare(
+        `SELECT SUM(CASE WHEN started_at >= datetime('now','+9 hours','-7 days') THEN 1 ELSE 0 END) AS d7,
+                COUNT(*) AS d30
+           FROM visits WHERE ip = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-30 days')`
+      ).bind(ip).first();
+      ip7 = Number((r1 || {}).d7) || 0;
+      ip30 = Number((r1 || {}).d30) || 0;
+      if (fp) {
+        const r2 = await env.DB.prepare(
+          `SELECT SUM(CASE WHEN started_at >= datetime('now','+9 hours','-7 days') THEN 1 ELSE 0 END) AS d7,
+                  COUNT(*) AS d30
+             FROM visits WHERE fp = ? AND is_ad = 1 AND started_at >= datetime('now','+9 hours','-30 days')`
+        ).bind(fp).first();
+        fp7 = Number((r2 || {}).d7) || 0;
+        fp30 = Number((r2 || {}).d30) || 0;
+      }
+    } catch (e) {
+    }
+  }
+  const rr = evalRules(Math.max(ip7, fp7), Math.max(ip30, fp30));
   const ev = judgeSession({
     isAd,
     ipAd,
@@ -1209,45 +1382,57 @@ async function onRequestPost10(context) {
     carrier: isCarrier(org),
     converted: false
   });
+  const finalVerdict = strongerVerdict(ev.verdict, rr.state);
+  const finalReasons = [ev.reasons.join(" / "), rr.why.join(" / ")].filter(Boolean).join(" / ");
   let dbErr = null;
-  try {
-    await env.DB.prepare(
-      `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
+  const _vi = /* @__PURE__ */ __name(() => env.DB.prepare(
+    `INSERT INTO visits (sid, fp, ip, src, is_ad, started_at, last_at, total_ms, pages, moved, depth, asn, region, org, country, ua, kw, score, verdict, reasons)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-       ON CONFLICT(sid) DO UPDATE SET last_at = excluded.last_at, pages = pages + 1,
+       ON CONFLICT(sid) DO UPDATE SET last_at = excluded.last_at, ended_at = NULL, pages = pages + 1,
          moved = MAX(COALESCE(visits.moved,0), excluded.moved), score = excluded.score,
          verdict = excluded.verdict, reasons = excluded.reasons,
          kw = CASE WHEN visits.kw IS NULL OR visits.kw = '' THEN excluded.kw ELSE visits.kw END`
-    ).bind(
-      sid,
-      fp,
-      ip,
-      src,
-      isAd ? 1 : 0,
-      kst(0),
-      kst(0),
-      actMs,
-      moved,
-      depth,
-      asn,
-      region,
-      org,
-      country,
-      ua.slice(0, 200),
-      kw,
-      ev.score,
-      ev.verdict,
-      ev.reasons.join(" / ")
-    ).run();
+  ).bind(
+    sid,
+    fp,
+    ip,
+    src,
+    isAd ? 1 : 0,
+    kst(0),
+    kst(0),
+    actMs,
+    moved,
+    depth,
+    asn,
+    region,
+    org,
+    country,
+    ua.slice(0, 200),
+    kw,
+    ev.score,
+    finalVerdict,
+    finalReasons
+  ), "_vi");
+  try {
+    await _vi().run();
   } catch (e) {
     dbErr = String(e && e.message || e).slice(0, 200);
+    try {
+      await repairSchema(env);
+      await _vi().run();
+      dbErr = null;
+    } catch (e2) {
+      dbErr = String(e2 && e2.message || e2).slice(0, 200);
+      await setSet(env, "last_db_err", dbErr + " @ " + kst(0));
+    }
   }
-  let action = whitelisted ? "allow" : ev.verdict === "block" ? "block" : ev.verdict === "warn" ? "warn" : "allow";
-  let stage = ev.verdict === "block" ? 3 : ev.verdict === "warn" ? 2 : ev.verdict === "watch" ? 1 : 0;
+  let action = whitelisted ? "allow" : finalVerdict === "block" ? "block" : finalVerdict === "warn" ? "warn" : "allow";
+  let stage = finalVerdict === "block" ? 3 : finalVerdict === "warn" ? 2 : finalVerdict === "watch" ? 1 : 0;
   let blockedUntil = null;
   if (action === "block" && isAd) {
+    const permanent = rr.state === "block";
     const hours = ev.score >= STAGE.block + 60 ? 24 : 4;
-    blockedUntil = kst(hours * 36e5);
+    blockedUntil = permanent ? null : kst(hours * 36e5);
     const prev = await env.DB.prepare("SELECT mode, blocked_until FROM blocked_ips WHERE ip = ?").bind(ip).first();
     const isNew = !prev || prev.mode === "allow" || prev.blocked_until && prev.blocked_until < kst(0);
     await env.DB.prepare(
@@ -1256,13 +1441,13 @@ async function onRequestPost10(context) {
        ON CONFLICT(ip) DO UPDATE SET reason=excluded.reason, score=excluded.score,
          hit_count=COALESCE(blocked_ips.hit_count,0)+1, blocked_until=excluded.blocked_until
        WHERE blocked_ips.manual = 0`
-    ).bind(ip, ev.reasons.join(" / ") || "\uBC18\uBCF5 \uC811\uC18D", ev.score, ipAd, blockedUntil, fp).run();
+    ).bind(ip, finalReasons || "\uBC18\uBCF5 \uC811\uC18D", ev.score, ipAd, blockedUntil, fp).run();
     if (isNew) {
       waitUntil(notifyBlock(env, {
         ip,
         score: ev.score,
         hits: ipAd,
-        reason: ev.reasons.join(" / ") || "\uBC18\uBCF5 \uC811\uC18D",
+        reason: finalReasons || "\uBC18\uBCF5 \uC811\uC18D",
         region,
         org,
         country,
@@ -1279,9 +1464,12 @@ async function onRequestPost10(context) {
     stage,
     score: ev.score,
     hits: ipAd,
-    verdict: ev.verdict,
-    reason: ev.reasons.join(" / "),
+    verdict: finalVerdict,
+    reason: finalReasons,
     blockedUntil,
+    rule: rr.state,
+    ad7: Math.max(ip7, fp7),
+    ad30: Math.max(ip30, fp30),
     region,
     org,
     src,
@@ -1306,7 +1494,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-ehhkcd_z/.wrangler/tmp/pages-PaHsT3/functionsRoutes-0.31900910947773475.mjs
+// ../../../../../../tmp/lg-worker-yt6g8yv5/.wrangler/tmp/pages-ZvzZLy/functionsRoutes-0.6852592354051239.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",

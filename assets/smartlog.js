@@ -201,5 +201,20 @@
   if(document.readyState === 'complete') boot();
   else window.addEventListener('load', boot);
 
-  window.addEventListener('pagehide', function(){ send(true, true); });
+  /* 하트비트 — 페이지가 열려 있는 동안 45초마다 last_at만 갱신 (체류시간 증가 없음) */
+  setInterval(function(){
+    if(document.hidden || !lastId) return;
+    try{ fetch('/api/track',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:JSON.stringify({op:'hb',s:sid,id:lastId})}); }catch(e){}
+  }, 45000);
+
+  /* 창/탭 종료 — 닫히는 순간 종료를 알린다 (내부 이동이면 서버가 10초 내 재개로 판단) */
+  function sendEnd(){
+    if(!lastId) return;
+    try{
+      var eb = JSON.stringify({op:'end',s:sid,id:lastId});
+      if(navigator.sendBeacon){ navigator.sendBeacon('/api/track', new Blob([eb],{type:'application/json'})); return; }
+      fetch('/api/track',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:eb});
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', function(e){ sendEnd(); send(true, true); });
 })();
