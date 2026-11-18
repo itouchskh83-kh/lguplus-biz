@@ -1001,11 +1001,52 @@ async function onRequestPost9(context) {
   if (op === "detail") {
     const sid = String(b.sid || "");
     const v = await env.DB.prepare("SELECT * FROM visits WHERE sid = ?").bind(sid).first();
+    if (!v) return json({ ok: true, visit: null, logs: [], linked: { rows: [], stat: {} } });
     const l = await env.DB.prepare(
       `SELECT id, path, ref, keyword, created_at, dwell, act_ms, moved, reason
          FROM click_logs WHERE sid = ? ORDER BY id ASC LIMIT 60`
     ).bind(sid).all();
-    return json({ ok: true, visit: v || null, logs: l.results || [] });
+    const fp0 = String(v.fp || "");
+    let fps = [];
+    try {
+      const dv = await env.DB.prepare(
+        `SELECT fp, COUNT(*) AS n FROM visits WHERE ip = ? AND fp <> ''
+          GROUP BY fp ORDER BY n DESC LIMIT 12`
+      ).bind(v.ip).all();
+      fps = (dv.results || []).map((r) => String(r.fp)).filter(Boolean);
+    } catch (e) {
+    }
+    if (fp0 && fps.indexOf(fp0) < 0) fps.unshift(fp0);
+    const ph = fps.map(() => "?").join(",");
+    const cond = fps.length ? "(ip = ? OR fp IN (" + ph + "))" : "ip = ?";
+    const cp = [v.ip].concat(fps);
+    const rw = await env.DB.prepare(
+      `SELECT sid, ip, fp, is_ad, started_at, last_at, total_ms, pages, kw, verdict, score, region, org
+         FROM visits WHERE ${cond} ORDER BY started_at DESC LIMIT 200`
+    ).bind(...cp).all();
+    const sm = await env.DB.prepare(
+      `SELECT COUNT(*) AS total, MIN(started_at) AS first, MAX(started_at) AS last,
+              SUM(is_ad) AS ad, COUNT(DISTINCT ip) AS ips, COUNT(DISTINCT NULLIF(fp,'')) AS fpn
+         FROM visits WHERE ${cond}`
+    ).bind(...cp).first();
+    const ipn = await env.DB.prepare("SELECT COUNT(*) AS c FROM visits WHERE ip = ?").bind(v.ip).first();
+    const rows = (rw.results || []).map((r) => {
+      const sameIp = String(r.ip) === String(v.ip);
+      const sameFp = !!fp0 && String(r.fp) === fp0;
+      return Object.assign({}, r, { rel: sameIp && sameFp ? "\uB3D9\uC77C" : sameIp ? "IP" : "\uAE30\uAE30" });
+    });
+    return json({ ok: true, visit: v, logs: l.results || [], linked: {
+      rows,
+      stat: {
+        total: Number((sm || {}).total) || 0,
+        first: (sm || {}).first || "",
+        last: (sm || {}).last || "",
+        ad: Number((sm || {}).ad) || 0,
+        ips: Number((sm || {}).ips) || 0,
+        fpn: Number((sm || {}).fpn) || 0,
+        ipn: Number((ipn || {}).c) || 0
+      }
+    } });
   }
   if (op === "suspicious") {
     const page = clampPage(b.page), per = clampPer(b.per);
@@ -1494,7 +1535,7 @@ async function onRequest(context) {
 }
 __name(onRequest, "onRequest");
 
-// ../../../../../../tmp/lg-worker-yt6g8yv5/.wrangler/tmp/pages-ZvzZLy/functionsRoutes-0.6852592354051239.mjs
+// ../../../../../../tmp/lg-worker-kgy4tflp/.wrangler/tmp/pages-zZdyiA/functionsRoutes-0.07598378627402869.mjs
 var routes = [
   {
     routePath: "/api/posts/:id/admin-delete",
