@@ -176,7 +176,7 @@
       p: path, r: ref, q: kw, qs: location.search.slice(0,300), f: fp, n: known && known !== fp ? 0 : 1,
       s: sid, a: actNow(),
       d: Math.round((Date.now() - t0) / 1000), v: depth,
-      m: moved ? 1 : 0, s: scrolled, w: screen.width, h: screen.height, t: TEST
+      m: moved ? 1 : 0, sc: scrolled, w: screen.width, h: screen.height, t: TEST
     });
     if(beacon && navigator.sendBeacon){
       try{ navigator.sendBeacon('/api/track', new Blob([body], {type:'application/json'})); return; }catch(e){}
@@ -195,8 +195,9 @@
   }
 
   function boot(){
-    // 체류시간 확보 후 전송 (이탈률 판정용)
-    setTimeout(function(){ send(false); }, 1200);
+    // 로드 즉시 1차 전송 — 즉시 이탈(뒤로가기)한 광고 클릭도 집계되도록 단축
+    send(false);
+    if (!sentOnce && !lastId) setTimeout(function(){ if (!lastId) send(false); }, 1500);
   }
   if(document.readyState === 'complete') boot();
   else window.addEventListener('load', boot);
@@ -216,5 +217,17 @@
       fetch('/api/track',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:eb});
     }catch(e){}
   }
-  window.addEventListener('pagehide', function(e){ sendEnd(); send(true, true); });
+  window.addEventListener('pagehide', function(e){
+    // 진입 기록이 성공했으면 종료 갱신, 1.5초 안에 나가 전송을 못 했으면 진입 기록을 beacon으로 즉시 전송
+    if (lastId) { sendEnd(); send(true, true); }
+    else if (!sentOnce) {
+      try{
+        navigator.sendBeacon('/api/track', new Blob([JSON.stringify({
+          p: path, r: ref, q: kw, qs: location.search.slice(0,300), f: fp, n: known && known !== fp ? 0 : 1,
+          s: sid, a: actNow(), d: Math.round((Date.now() - t0) / 1000), v: depth,
+          m: moved ? 1 : 0, sc: scrolled, w: screen.width, h: screen.height, t: TEST
+        })], {type:'application/json'})); sentOnce = true;
+      }catch(err){ send(false); }
+    }
+  });
 })();

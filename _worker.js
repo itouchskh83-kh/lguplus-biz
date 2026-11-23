@@ -595,6 +595,7 @@ async function repairSchema(env) {
   if (!env || !env.DB) return false;
   await ensureCol(env, "click_logs", "sid", "TEXT");
   await ensureCol(env, "click_logs", "act_ms", "INTEGER");
+  await ensureCol(env, "click_logs", "qs", "TEXT");
   await ensureCol(env, "visits", "asn", "TEXT");
   await ensureCol(env, "visits", "kw", "TEXT");
   await ensureCol(env, "visits", "ended_at", "TEXT");
@@ -1225,6 +1226,7 @@ async function onRequestPost10(context) {
   const ref = String(b.r || "").slice(0, 500);
   const kw = String(b.q || "").slice(0, 80);
   const path = String(b.p || "/").slice(0, 200);
+  const qs = String(b.qs || "").slice(0, 300);
   const fp = String(b.f || "").slice(0, 40);
   let sid = String(b.s || "").slice(0, 48);
   if (b.op !== "upd" && b.op !== "end" && b.op !== "hb") {
@@ -1303,9 +1305,9 @@ async function onRequestPost10(context) {
   const uh = await uaHash(ua);
   if (testMode) {
     const r = await env.DB.prepare(
-      `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
-       VALUES (?,?,?,?,?,?,?,0,0,'test','\uD14C\uC2A4\uD2B8',?,?,?,?,0,?,?,?,?,0)`
-    ).bind(ip, fp, ua.slice(0, 300), uh, ref, kw, path, String(cf.asn || ""), org, country, region, depth, moved, isKnown, sid).run();
+      `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, qs, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
+       VALUES (?,?,?,?,?,?,?,?,0,0,'test','\uD14C\uC2A4\uD2B8',?,?,?,?,0,?,?,?,?,0)`
+    ).bind(ip, fp, ua.slice(0, 300), uh, ref, kw, path, qs, String(cf.asn || ""), org, country, region, depth, moved, isKnown, sid).run();
     return json({
       ok: true,
       action: "allow",
@@ -1332,8 +1334,8 @@ async function onRequestPost10(context) {
     });
   }
   const ins = await env.DB.prepare(
-    `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
-     VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,0,?,?,?,?,0)`
+    `INSERT INTO click_logs (ip, fp, ua, ua_hash, ref, keyword, path, qs, is_naver, score, action, reason, asn, org, country, region, dwell, depth, moved, is_known, sid, act_ms)
+     VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,0,?,?,?,?,0)`
   ).bind(
     ip,
     fp,
@@ -1342,6 +1344,7 @@ async function onRequestPost10(context) {
     ref,
     kw,
     path,
+    qs,
     isAd ? 1 : 0,
     isEntry ? "allow" : "allow",
     isEntry ? srcLabel(src) : "\uB0B4\uBD80 \uC774\uB3D9",
