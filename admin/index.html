@@ -118,7 +118,8 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
         <button class="tab" data-tab="visit" data-label="방문 목록"><em>03</em>방문 목록</button>
         <button class="tab" data-tab="sus" data-label="의심 IP"><em>04</em>의심 IP</button>
         <button class="tab" data-tab="block" data-label="차단 관리"><em>05</em>차단 관리</button>
-        <button class="tab" data-tab="raw" data-label="원본 로그"><em>06</em>원본 로그</button>
+        <button class="tab" data-tab="raw"
+        <button class="tab" data-tab="src" data-label="유입 경로"><em>07</em>유입 경로</button> data-label="원본 로그"><em>06</em>원본 로그</button>
       </nav>
       <div class="side-foot">LG U+ 기업가입센터<br>상담·부정클릭 관리 콘솔</div>
     </aside>
@@ -211,7 +212,30 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
     <p id="bMsg" style="font-size:12.5px;font-weight:700;margin-top:10px"></p>
   </section>
 
-  <section id="tabRaw" style="display:none;margin-top:18px">
+    <section id="tabSrc" style="display:none;margin-top:18px">
+    <div class="toolbar">
+      <select id="srcDays"><option value="1">오늘</option><option value="7" selected>최근 7일</option><option value="30">최근 30일</option><option value="90">최근 90일</option></select>
+      <button class="btn btn-red" id="srcGo" type="button">조회</button>
+    </div>
+    <div class="tw">
+      <table><thead><tr><th>유입 분류</th><th>방문(PV)</th><th>고유 IP</th></tr></thead>
+      <tbody id="srcBody"><tr><td colspan="3" style="padding:22px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
+    </div>
+    <div class="tw" style="margin-top:22px">
+      <div style="padding:14px 16px 0"><b style="font-size:14px">광고 키워드</b>
+        <p class="hint" style="margin-top:6px">네이버 광고로 들어온 검색 키워드와 평균 광고 순위(n_rank)입니다.</p></div>
+      <table><thead><tr><th>키워드</th><th>클릭</th><th>평균 순위</th><th>최근 유입</th></tr></thead>
+      <tbody id="srcKw"><tr><td colspan="4" style="padding:18px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
+    </div>
+    <div class="tw" style="margin-top:22px">
+      <div style="padding:14px 16px 0"><b style="font-size:14px">최근 유입 원본</b>
+        <p class="hint" style="margin-top:6px">방문자가 실제로 어떤 URL 파라미터를 갖고 들어왔는지 그대로 보여줍니다. 카톡·블로그 등 외부 링크 유입도 여기에서 확인됩니다.</p></div>
+      <table><thead><tr><th>시각</th><th>레퍼러</th><th>키워드</th><th>URL 파라미터</th></tr></thead>
+      <tbody id="srcRecent"><tr><td colspan="4" style="padding:18px;text-align:center;color:#9aa0b0">불러오는 중…</td></tr></tbody></table>
+    </div>
+  </section>
+
+<section id="tabRaw" style="display:none;margin-top:18px">
     <div class="toolbar">
       <select id="rDays"><option value="1">오늘</option><option value="7" selected>최근 7일</option><option value="30">최근 30일</option></select>
       <button class="btn btn-red" id="rGo" type="button">조회</button>
@@ -609,7 +633,29 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
   }
   $("rGo") && $("rGo").addEventListener("click", function(){ loadRaw(1); });
 
-  /* ───────── 탭 ───────── */
+    /* ───────── 유입 경로 ───────── */
+  function escH(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function decQs(s){ try{ return decodeURIComponent(String(s||'')); }catch(e){ return String(s||''); } }
+  function loadSources(){
+    fetch("/api/smartlog",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:token,op:"sources",days:+$("srcDays").value})})
+      .then(function(r){ return r.json(); }).then(function(j){
+        if(!j.ok) return;
+        function empty(n){ return '<tr><td colspan="'+n+'" style="padding:18px;text-align:center;color:#9aa0b0">데이터 없음</td></tr>'; }
+        $("srcBody").innerHTML = (j.sources&&j.sources.length)
+          ? j.sources.map(function(r){ return '<tr><td><b>'+escH(r.src)+'</b></td><td>'+(r.pv||0)+'회</td><td>'+(r.ips||0)+'개</td></tr>'; }).join('')
+          : empty(3);
+        $("srcKw").innerHTML = (j.keywords&&j.keywords.length)
+          ? j.keywords.map(function(r){ return '<tr><td><b>'+escH(r.keyword)+'</b></td><td>'+r.clicks+'회</td><td>'+(r.avg_rank?('평균 '+r.avg_rank.toFixed(1)+'위'):'-')+'</td><td style="white-space:nowrap">'+escH(r.last)+'</td></tr>'; }).join('')
+          : empty(4);
+        $("srcRecent").innerHTML = (j.recent&&j.recent.length)
+          ? j.recent.map(function(r){ return '<tr><td style="white-space:nowrap;font-size:12px">'+escH(r.created_at)+'</td><td>'+escH(r.ref||'직접방문')+'</td><td>'+escH(r.keyword||'-')+'</td><td style="max-width:380px;word-break:break-all;font-size:11.5px;color:#6b7080">'+escH(decQs(r.qs))+'</td></tr>'; }).join('')
+          : empty(4);
+      });
+  }
+  $("srcGo") && $("srcGo").addEventListener("click", loadSources);
+  $("srcDays") && $("srcDays").addEventListener("change", loadSources);
+
+/* ───────── 탭 ───────── */
   document.querySelectorAll(".tab").forEach(function(t){
     t.addEventListener("click", function(){
       document.querySelectorAll(".tab").forEach(function(x){ x.classList.remove("is-on"); });
@@ -617,7 +663,7 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
       var pt=document.getElementById("pageTitle");
       if(pt){ pt.textContent=(t.getAttribute("data-label")||t.textContent).trim(); }
       var k=t.dataset.tab;
-      [["post","tabPost"],["sum","tabSum"],["visit","tabVisit"],["sus","tabSus"],["block","tabBlock"],["raw","tabRaw"]].forEach(function(p){
+      [["post","tabPost"],["sum","tabSum"],["visit","tabVisit"],["sus","tabSus"],["block","tabBlock"],["raw","tabRaw"],["src","tabSrc"]].forEach(function(p){
         var el=$(p[1]); if(el) el.style.display = (p[0]===k?"":"none");
       });
       if(k==="sum") loadSummary();
@@ -625,6 +671,7 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:1
       if(k==="sus"){ loadSus(1); loadAsn(); }
       if(k==="block") loadBlocked();
       if(k==="raw") loadRaw(1);
+      if(k==="src") loadSources();
     });
   });
 

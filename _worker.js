@@ -958,6 +958,46 @@ async function onRequestPost9(context) {
     if (rx.need) WA(reindexBatch(env).catch(() => null));
     return json({ ok: true, days, myIp: clientIP(request), stat: s || {}, pv: s2 || {}, blockedNow: (bl || {}).c || 0, rx });
   }
+
+  /* ── 유입 경로 ── */
+  if (op === 'sources') {
+    const sources = await env.DB.prepare(
+      `SELECT CASE
+          WHEN is_naver = 1 THEN '유료 광고'
+          WHEN ref LIKE '%search.naver.com%' OR ref LIKE '%naver.com%' OR ref LIKE '%google.%' OR ref LIKE '%daum.net%' THEN '자연검색'
+          WHEN ref IS NULL OR ref = '' THEN '직접방문'
+          ELSE '외부 링크' END AS src,
+         COUNT(*) AS pv, COUNT(DISTINCT ip) AS ips
+        FROM click_logs WHERE created_at >= ${win} AND action <> 'test'
+        GROUP BY src ORDER BY pv DESC`).all();
+    const refs = await env.DB.prepare(
+      `SELECT ref, COUNT(*) AS pv FROM click_logs
+        WHERE created_at >= ${win} AND action <> 'test' AND ref IS NOT NULL AND ref <> ''
+        GROUP BY ref ORDER BY pv DESC LIMIT 15`).all();
+    const kwRows = await env.DB.prepare(
+      `SELECT keyword, qs, created_at FROM click_logs
+        WHERE created_at >= ${win} AND is_naver = 1 AND keyword IS NOT NULL AND keyword <> ''
+        ORDER BY id DESC LIMIT 500`).all();
+    const kwMap = {};
+    (kwRows.results || []).forEach(function(r){
+      var m = /(?:^|&)n_rank=(\d+)/.exec(String(r.qs || ''));
+      var rank = m ? Number(m[1]) : null;
+      var k = kwMap[r.keyword];
+      if (!k) k = kwMap[r.keyword] = { keyword: r.keyword, clicks: 0, ranks: [], last: '' };
+      k.clicks++;
+      if (rank) k.ranks.push(rank);
+      if (r.created_at > k.last) k.last = r.created_at;
+    });
+    const kws = Object.values(kwMap).sort(function(a,b){ return b.clicks - a.clicks; }).slice(0, 15)
+      .map(function(k){
+        var avg = k.ranks.length ? k.ranks.reduce(function(a,b){ return a+b; }, 0) / k.ranks.length : null;
+        return { keyword: k.keyword, clicks: k.clicks, avg_rank: avg, last: k.last };
+      });
+    const recent = await env.DB.prepare(
+      `SELECT created_at, ref, keyword, qs FROM click_logs
+        WHERE created_at >= ${win} AND action <> 'test' ORDER BY id DESC LIMIT 40`).all();
+    return json({ ok: true, sources: sources.results || [], refs: refs.results || [], keywords: kws, recent: recent.results || [] });
+  }
   if (op === "visits") {
     const page = clampPage(b.page), per = clampPer(b.per);
     const src = String(b.src || "all"), verdict = String(b.verdict || "all"), q = String(b.q || "").trim();
